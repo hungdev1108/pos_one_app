@@ -2,7 +2,9 @@
 export { apiClient } from './client';
 
 // Export services
-export { AuthService, authService } from './services/auth';
+
+export { areasService } from './services/areas';
+export { authService } from './services/auth';
 export { warehouseService } from './services/warehouse';
 
 // Export JWT utilities
@@ -15,9 +17,9 @@ export {
 export type {
     ApiError,
     ApiRequestConfig,
-    ApiResponse, Category, JwtClaims, LoginRequest,
-    LoginResponse, Product,
-    ProductsResponse, User,
+    ApiResponse, Area, AreaDetailResponse, AreasResponse, Category, Customer, JwtClaims, LoginRequest,
+    LoginResponse, Order, OrderProduct, Product,
+    ProductsResponse, Table, TableDetailResponse, TablesResponse, TableStatus, Unit, User,
     UserInfo
 } from './types';
 

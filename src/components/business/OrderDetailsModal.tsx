@@ -1,5 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
-import React from "react";
+import React, { useEffect } from "react";
 import {
   FlatList,
   Modal,
@@ -33,6 +33,12 @@ export default function OrderDetailsModal({
   onRemoveItem,
 }: OrderDetailsModalProps) {
   const insets = useSafeAreaInsets();
+
+  useEffect(() => {
+    if (visible && orderItems.length === 0) {
+      onClose();
+    }
+  }, [visible, orderItems.length, onClose]);
 
   const formatPrice = (price: number): string => {
     return new Intl.NumberFormat("vi-VN", {
@@ -108,7 +114,7 @@ export default function OrderDetailsModal({
       presentationStyle="pageSheet"
       onRequestClose={onClose}
     >
-      <View style={[styles.container, { paddingTop: insets.top }]}>
+      <View style={[styles.container]}>
         {/* Header */}
         <View style={styles.header}>
           <Text style={styles.headerTitle}>Chi tiết đơn hàng</Text>
@@ -178,8 +184,8 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
   },
   summaryText: {
-    fontSize: 14,
-    color: "#666",
+    fontSize: 16,
+    color: "#333",
     textAlign: "center",
   },
   itemsList: {
@@ -205,6 +211,7 @@ const styles = StyleSheet.create({
     fontWeight: "500",
     color: "#333",
     marginBottom: 4,
+    textAlign: "left",
   },
   itemPrice: {
     fontSize: 14,

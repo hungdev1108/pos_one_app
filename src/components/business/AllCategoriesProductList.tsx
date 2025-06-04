@@ -1,38 +1,58 @@
-import { Product } from "@/api";
+import { Category, Product } from "@/api";
 import { API_CONFIG } from "@/api/constants";
 import { Ionicons } from "@expo/vector-icons";
 import { Image as ExpoImage } from "expo-image";
-import React from "react";
+import React, { useEffect, useRef } from "react";
 import {
   ActivityIndicator,
   Dimensions,
-  FlatList,
   RefreshControl,
+  ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from "react-native";
 
-interface ProductListProps {
-  products: Product[];
+interface AllCategoriesProductListProps {
+  categories: Category[];
+  allProducts: { [categoryId: string]: Product[] };
   loading: boolean;
   onProductSelect: (product: Product) => void;
   onAddToOrder: (product: Product) => void;
   onRefresh?: () => void;
+  selectedCategoryId?: string | null;
 }
 
 const { width } = Dimensions.get("window");
 const numColumns = 2;
 const ITEM_WIDTH = (width - 48) / numColumns;
 
-const ProductList: React.FC<ProductListProps> = ({
-  products,
+const AllCategoriesProductList: React.FC<AllCategoriesProductListProps> = ({
+  categories,
+  allProducts,
   loading,
   onProductSelect,
   onAddToOrder,
   onRefresh,
+  selectedCategoryId,
 }) => {
+  const scrollViewRef = useRef<ScrollView>(null);
+  const categoryRefs = useRef<{ [categoryId: string]: number }>({});
+
+  // Scroll to selected category when selectedCategoryId changes
+  useEffect(() => {
+    if (selectedCategoryId && scrollViewRef.current) {
+      const offset = categoryRefs.current[selectedCategoryId];
+      if (offset !== undefined) {
+        scrollViewRef.current.scrollTo({
+          y: offset,
+          animated: true,
+        });
+      }
+    }
+  }, [selectedCategoryId]);
+
   const getImageSource = (product: Product) => {
     // Priority 1: Use BASE_URL + fullPath if available
     if (product.image?.fullPath) {
@@ -62,21 +82,21 @@ const ProductList: React.FC<ProductListProps> = ({
       };
     }
 
-    // No image available, return null to use placeholder
     return null;
   };
 
-  const renderProductItem = ({ item }: { item: Product }) => {
-    const imageSource = getImageSource(item);
-    const price = item.priceAfterDiscount || item.price;
+  const renderProductItem = (product: Product) => {
+    const imageSource = getImageSource(product);
+    const price = product.priceAfterDiscount || product.price;
     const formattedPrice = price.toLocaleString("vi-VN");
 
     return (
       <TouchableOpacity
+        key={product.id}
         style={styles.productItem}
         onPress={() => {
-          onProductSelect(item);
-          onAddToOrder(item);
+          onProductSelect(product);
+          onAddToOrder(product);
         }}
       >
         <View style={styles.productCard}>
@@ -96,7 +116,7 @@ const ProductList: React.FC<ProductListProps> = ({
           </View>
           <View style={styles.productInfo}>
             <Text style={styles.productTitle} numberOfLines={2}>
-              {item.title}
+              {product.title}
             </Text>
             <Text style={styles.productPrice}>{formattedPrice}đ</Text>
           </View>
@@ -104,7 +124,7 @@ const ProductList: React.FC<ProductListProps> = ({
             style={styles.addButton}
             onPress={(e) => {
               e.stopPropagation();
-              onAddToOrder(item);
+              onAddToOrder(product);
             }}
           >
             <Ionicons name="add" size={16} color="#fff" />
@@ -114,32 +134,62 @@ const ProductList: React.FC<ProductListProps> = ({
     );
   };
 
+  const renderCategory = (category: Category, index: number) => {
+    const products = allProducts[category.id] || [];
+
+    return (
+      <View
+        key={category.id}
+        onLayout={(event) => {
+          categoryRefs.current[category.id] = event.nativeEvent.layout.y;
+        }}
+      >
+        {/* Category Header */}
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>{category.title}</Text>
+          <View style={styles.sectionDivider} />
+        </View>
+
+        {/* Products Grid */}
+        {products.length === 0 ? (
+          <View style={styles.emptySectionContainer}>
+            <Ionicons name="restaurant-outline" size={32} color="#dee2e6" />
+            <Text style={styles.emptySectionText}>
+              Chưa có sản phẩm trong danh mục này
+            </Text>
+          </View>
+        ) : (
+          <View style={styles.productsGrid}>
+            {products.map((product) => renderProductItem(product))}
+          </View>
+        )}
+      </View>
+    );
+  };
+
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#198754" />
-        <Text style={styles.loadingText}>Đang tải sản phẩm...</Text>
+        <Text style={styles.loadingText}>Đang tải thực đơn...</Text>
       </View>
     );
   }
 
-  if (products.length === 0) {
+  if (categories.length === 0) {
     return (
       <View style={styles.emptyContainer}>
         <Ionicons name="restaurant-outline" size={48} color="#dee2e6" />
-        <Text style={styles.emptyText}>Không có sản phẩm nào</Text>
+        <Text style={styles.emptyText}>Chưa có danh mục nào</Text>
       </View>
     );
   }
 
   return (
-    <FlatList
-      data={products}
-      renderItem={renderProductItem}
-      keyExtractor={(item) => item.id}
-      numColumns={numColumns}
+    <ScrollView
+      ref={scrollViewRef}
+      style={styles.container}
       contentContainerStyle={styles.listContainer}
-      columnWrapperStyle={styles.columnWrapper}
       showsVerticalScrollIndicator={false}
       refreshControl={
         <RefreshControl
@@ -149,17 +199,43 @@ const ProductList: React.FC<ProductListProps> = ({
           tintColor="#198754"
         />
       }
-    />
+    >
+      {categories.map((category, index) => renderCategory(category, index))}
+    </ScrollView>
   );
 };
 
 const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
   listContainer: {
     paddingHorizontal: 16,
     paddingBottom: 100,
   },
-  columnWrapper: {
+  sectionHeader: {
+    backgroundColor: "#f8f9fa",
+    paddingVertical: 16,
+    paddingHorizontal: 0,
+    marginBottom: 12,
+    width: "100%",
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: "#333",
+    marginBottom: 8,
+  },
+  sectionDivider: {
+    height: 2,
+    backgroundColor: "#198754",
+    borderRadius: 1,
+  },
+  productsGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
     justifyContent: "space-between",
+    marginBottom: 24,
   },
   productItem: {
     width: ITEM_WIDTH,
@@ -199,11 +275,11 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "500",
     color: "#333",
-    marginBottom: 6,
-    height: 40,
+    marginBottom: 8,
+    lineHeight: 18,
   },
   productPrice: {
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: "bold",
     color: "#198754",
   },
@@ -212,45 +288,51 @@ const styles = StyleSheet.create({
     bottom: 10,
     right: 10,
     backgroundColor: "#198754",
-    width: 28,
-    height: 28,
-    borderRadius: 14,
+    borderRadius: 16,
+    width: 32,
+    height: 32,
     justifyContent: "center",
     alignItems: "center",
-    elevation: 3,
+    elevation: 2,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.2,
-    shadowRadius: 1,
+    shadowRadius: 2,
   },
-  addButtonText: {
-    color: "#fff",
-    fontSize: 18,
-    fontWeight: "bold",
-    lineHeight: 22,
-  },
-  loadingContainer: {
-    padding: 20,
+  emptySectionContainer: {
     alignItems: "center",
     justifyContent: "center",
-    minHeight: 200,
+    paddingVertical: 40,
+    width: "100%",
+    marginBottom: 24,
+  },
+  emptySectionText: {
+    fontSize: 14,
+    color: "#666",
+    marginTop: 8,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 40,
   },
   loadingText: {
-    marginTop: 10,
+    marginTop: 16,
     fontSize: 16,
     color: "#666",
   },
   emptyContainer: {
-    padding: 20,
-    alignItems: "center",
+    flex: 1,
     justifyContent: "center",
-    minHeight: 200,
+    alignItems: "center",
+    padding: 40,
   },
   emptyText: {
     fontSize: 16,
     color: "#666",
-    marginTop: 10,
+    marginTop: 16,
   },
 });
 
-export default ProductList;
+export default AllCategoriesProductList;

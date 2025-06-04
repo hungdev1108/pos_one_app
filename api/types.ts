@@ -37,6 +37,7 @@ export interface UserInfo {
   companyName?: string;
   userFullName?: string;
   userName?: string;
+  branchId?: string;
 }
 
 export interface User {
@@ -120,4 +121,80 @@ export interface ProductsResponse {
   totalRecords: number;
   pageNumber: number;
   pageSize: number;
+}
+
+// Areas & Tables Types
+export interface Customer {
+  id: string;
+  name: string;
+  phone: string;
+}
+
+export interface Unit {
+  id: string;
+  name: string;
+}
+
+export interface OrderProduct {
+  id: string;
+  name: string;
+  quantity: number;
+  price: number;
+  totalCost: number;
+  totalCostInclideVAT: number;
+  unit: Unit;
+}
+
+export interface Order {
+  id: string;
+  code: string;
+  tableId: string;
+  createDate: string;
+  customer?: Customer;
+  products: OrderProduct[];
+}
+
+export interface Table {
+  id: string;
+  name: string;
+  priority: number;
+  status: TableStatus;
+  order?: Order;
+}
+
+export interface Area {
+  id: string;
+  name: string;
+  priority: number;
+  tables: Table[];
+}
+
+export enum TableStatus {
+  Available = 0,
+  Occupied = 1,
+}
+
+// API Response Types
+export interface AreasResponse {
+  isSuccess: boolean;
+  data: Area[];
+  error?: string;
+}
+
+export interface AreaDetailResponse {
+  isSuccess: boolean;
+  data: Area;
+  error?: string;
+}
+
+export interface TablesResponse {
+  isSuccess: boolean;
+  data: Table[];
+  error?: string;
+}
+
+export interface TableDetailResponse {
+  isSuccess: boolean;
+  data: Table;
+  error?: string;
 } 
