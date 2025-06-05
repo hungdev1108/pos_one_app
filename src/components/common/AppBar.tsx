@@ -34,9 +34,18 @@ export default function AppBar({ onMenuPress, onReloadPress }: AppBarProps) {
 
         {/* Title */}
         <View style={styles.titleContainer}>
+          <Ionicons name="logo-stackoverflow" size={24} color="#fff" />
           <Text style={styles.posText}>POS</Text>
           <Text style={styles.oneText}> ONE</Text>
         </View>
+
+        {/* Logo */}
+        {/* <View style={styles.logoContainer}>
+          <Image
+            style={styles.logo}
+            source={require("../../../assets/images/POS-ONE-LOGO.png")}
+          />
+        </View> */}
 
         {/* Reload Button */}
         <TouchableOpacity
@@ -52,6 +61,19 @@ export default function AppBar({ onMenuPress, onReloadPress }: AppBarProps) {
 }
 
 const styles = StyleSheet.create({
+  logoContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  logo: {
+    width: 160,
+    height: 50,
+    objectFit: "contain",
+    backgroundColor: "#fff",
+    borderRadius: 28,
+    // paddingHorizontal: 10,
+  },
   container: {
     flexDirection: "row",
     alignItems: "center",

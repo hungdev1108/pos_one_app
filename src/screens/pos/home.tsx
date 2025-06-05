@@ -8,6 +8,7 @@ import {
   areasService,
   authService,
   Category,
+  OrderListItem,
   Product,
   Table,
   UserInfo,
@@ -18,6 +19,8 @@ import AreasTablesView from "@/src/components/business/AreasTablesView";
 import CategoryBottomSheet from "@/src/components/business/CategoryBottomSheet";
 import OrderBottomSheet from "@/src/components/business/OrderBottomSheet";
 import OrderDetailsModal from "@/src/components/business/OrderDetailsModal";
+import OrderDetailViewModal from "@/src/components/business/OrderDetailViewModal";
+import OrdersView from "@/src/components/business/OrdersView";
 import TableDetailModal from "@/src/components/business/TableDetailModal";
 import AppBar from "@/src/components/common/AppBar";
 import DrawerMenu from "@/src/components/common/DrawerMenu";
@@ -64,6 +67,10 @@ export default function HomeScreen() {
   const [activeTab, setActiveTab] = useState<TabType>(TabType.MENU);
   const [categoryBottomSheetVisible, setCategoryBottomSheetVisible] =
     useState(false);
+  const [orderDetailViewVisible, setOrderDetailViewVisible] = useState(false);
+  const [selectedOrder, setSelectedOrder] = useState<OrderListItem | undefined>(
+    undefined
+  );
 
   useEffect(() => {
     loadInitialData();
@@ -307,6 +314,12 @@ export default function HomeScreen() {
     ]);
   };
 
+  const handleOrderPress = (order: OrderListItem) => {
+    console.log("📋 Order pressed:", order.code);
+    setSelectedOrder(order);
+    setOrderDetailViewVisible(true);
+  };
+
   const handleMenuPress = () => {
     setDrawerVisible(true);
   };
@@ -319,6 +332,8 @@ export default function HomeScreen() {
       await loadAreas();
     } else if (activeTab === TabType.MENU) {
       await loadInitialData();
+    } else if (activeTab === TabType.ORDERS) {
+      console.log("🔄 Manual reload orders data");
     }
 
     setRefreshing(false);
@@ -338,6 +353,9 @@ export default function HomeScreen() {
       await loadAreas();
     } else if (activeTab === TabType.MENU) {
       await Promise.all([loadCategories(), loadAllProducts()]);
+    } else if (activeTab === TabType.ORDERS) {
+      // OrdersView sẽ tự handle refresh khi onRefresh được gọi
+      console.log("🔄 Refreshing orders data");
     }
 
     setRefreshing(false);
@@ -458,6 +476,11 @@ export default function HomeScreen() {
               onAddToOrder={handleAddToOrder}
               onRefresh={onRefresh}
               selectedCategoryId={selectedCategoryId}
+              orderItems={orderItems.map((item) => ({
+                id: item.id,
+                quantity: item.quantity,
+              }))}
+              onUpdateQuantity={handleUpdateQuantity}
             />
 
             {/* Category Bottom Sheet */}
@@ -472,17 +495,7 @@ export default function HomeScreen() {
         );
       case TabType.ORDERS:
         return (
-          <View style={styles.tabContent}>
-            <Ionicons
-              name="receipt"
-              size={60}
-              color="#ddd"
-              style={styles.placeholderIcon}
-            />
-            <Text style={styles.placeholderText}>
-              Danh sách đơn hàng (Sẽ được tích hợp API sau)
-            </Text>
-          </View>
+          <OrdersView onOrderPress={handleOrderPress} onRefresh={onRefresh} />
         );
       default:
         return null;
@@ -605,6 +618,14 @@ export default function HomeScreen() {
           onCreateOrder={handleCreateOrder}
           onViewOrder={handleViewOrder}
         />
+
+        {/* Order Detail View Modal */}
+        <OrderDetailViewModal
+          visible={orderDetailViewVisible}
+          order={selectedOrder}
+          onClose={() => setOrderDetailViewVisible(false)}
+          onRefresh={onRefresh}
+        />
       </View>
     </SafeAreaView>
   );
@@ -654,6 +675,7 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
     shadowRadius: 1,
+    paddingHorizontal: 10,
   },
   tabButton: {
     flex: 1,

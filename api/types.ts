@@ -197,4 +197,110 @@ export interface TableDetailResponse {
   isSuccess: boolean;
   data: Table;
   error?: string;
+}
+
+// ===== ORDER SYSTEM TYPES FOR F&B =====
+
+// Order Status Enum
+export enum OrderStatus {
+  NEW = "new",
+  CONFIRM = "confirm", 
+  SEND = "send",
+  RECEIVE = "receive",
+  CANCEL = "cancel"
+}
+
+// Voucher Interface
+export interface Voucher {
+  id: string;
+  voucherCode: string;
+  discount: number;
+  discountIncludeVAT: number;
+}
+
+// Order List Item Interface
+export interface OrderListItem {
+  id: string;
+  code: string;
+  customerName: string;
+  customerPhone: string;
+  customerAddress: string;
+  countProducts: number;
+  totalPrice: number;
+  date: string;
+  exportWarehouse: boolean;
+  voucher?: Voucher;
+}
+
+// Orders List Response
+export interface OrdersListResponse {
+  items: OrderListItem[];
+  metaData: {
+    currentPage: number;
+    totalPages: number;
+    pageSize: number;
+    totalCount: number;
+  };
+}
+
+// Orders Request Parameters
+export interface OrdersRequestParams {
+  pageNumber: number;
+  pageSize: number;
+  searchTerm?: string;
+  fromDate?: string;
+  toDate?: string;
+}
+
+// Order Detail Product
+export interface OrderDetailProduct {
+  id: string;
+  productName: string;
+  quantity: number;
+  price: number;
+  totalCost: number;
+  isConfirm: boolean;
+  note?: string;
+}
+
+// Order Detail Interface
+export interface OrderDetail {
+  id: string;
+  code: string;
+  customerName: string;
+  customerPhone: string;
+  tableId?: string;
+  tableName?: string;
+  areaName?: string;
+  products: OrderDetailProduct[];
+  totalAmount: number;
+  discount: number;
+  totalPayableAmount: number;
+  createDate: string;
+  confirmDate?: string;
+  sendDate?: string;
+  receiveDate?: string;
+  cancelDate?: string;
+}
+
+// F&B Config Interface
+export interface FnBConfig {
+  LoaiHinhKinhDoanh: number; // 2 = F&B
+  LoaiFnB: number; // 1 = Thanh toán tại quầy, 2 = Thanh toán tại bàn
+  LoaiThue: number; // 0 = 0VAT, 1 = NVAT
+}
+
+// Config Response
+export interface ConfigResponse {
+  [key: string]: any;
+  LoaiHinhKinhDoanh?: number;
+  LoaiFnB?: number;
+  LoaiThue?: number;
+}
+
+// API Response for Order Operations
+export interface OrderOperationResponse {
+  successful: boolean;
+  error?: string;
+  data?: any;
 } 

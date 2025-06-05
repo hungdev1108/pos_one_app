@@ -1,8 +1,8 @@
 import { Category, Product } from "@/api";
 import { API_CONFIG } from "@/api/constants";
-import { Ionicons } from "@expo/vector-icons";
+import { Entypo, Ionicons, MaterialIcons } from "@expo/vector-icons";
 import { Image as ExpoImage } from "expo-image";
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Dimensions,
@@ -22,6 +22,8 @@ interface AllCategoriesProductListProps {
   onAddToOrder: (product: Product) => void;
   onRefresh?: () => void;
   selectedCategoryId?: string | null;
+  orderItems?: { id: string; quantity: number }[];
+  onUpdateQuantity?: (productId: string, newQuantity: number) => void;
 }
 
 const { width } = Dimensions.get("window");
@@ -36,9 +38,12 @@ const AllCategoriesProductList: React.FC<AllCategoriesProductListProps> = ({
   onAddToOrder,
   onRefresh,
   selectedCategoryId,
+  orderItems = [],
+  onUpdateQuantity,
 }) => {
   const scrollViewRef = useRef<ScrollView>(null);
   const categoryRefs = useRef<{ [categoryId: string]: number }>({});
+  const [activeProductId, setActiveProductId] = useState<string | null>(null);
 
   // Scroll to selected category when selectedCategoryId changes
   useEffect(() => {
@@ -85,6 +90,79 @@ const AllCategoriesProductList: React.FC<AllCategoriesProductListProps> = ({
     return null;
   };
 
+  const getItemQuantity = (productId: string): number => {
+    const orderItem = orderItems.find((item) => item.id === productId);
+    return orderItem ? orderItem.quantity : 0;
+  };
+
+  const handleQuantityPress = (productId: string) => {
+    setActiveProductId(activeProductId === productId ? null : productId);
+  };
+
+  const handleIncreaseQuantity = (product: Product) => {
+    const currentQuantity = getItemQuantity(product.id);
+    setActiveProductId(product.id);
+    onUpdateQuantity?.(product.id, currentQuantity + 1);
+    if (currentQuantity === 0) {
+      onAddToOrder(product);
+    }
+  };
+
+  const handleDecreaseQuantity = (productId: string) => {
+    const currentQuantity = getItemQuantity(productId);
+    if (currentQuantity > 0) {
+      onUpdateQuantity?.(productId, currentQuantity - 1);
+      if (currentQuantity === 1) {
+        setActiveProductId(null);
+      }
+    }
+  };
+
+  const renderQuantityControls = (product: Product) => {
+    const quantity = getItemQuantity(product.id);
+    const isActive = activeProductId === product.id;
+
+    if (quantity === 0) {
+      return (
+        <TouchableOpacity
+          style={styles.addButton}
+          onPress={() => handleIncreaseQuantity(product)}
+        >
+          <Ionicons name="add" size={20} color="#fff" />
+        </TouchableOpacity>
+      );
+    }
+
+    if (isActive) {
+      return (
+        <View style={styles.quantityControlsContainer}>
+          <TouchableOpacity
+            style={styles.quantityButton}
+            onPress={() => handleDecreaseQuantity(product.id)}
+          >
+            <Ionicons name="remove" size={20} color="#999" bold={true} />
+          </TouchableOpacity>
+          <Text style={styles.quantityText}>{quantity}</Text>
+          <TouchableOpacity
+            style={styles.quantityButton}
+            onPress={() => handleIncreaseQuantity(product)}
+          >
+            <Ionicons name="add" size={20} color="#999" bold={true} />
+          </TouchableOpacity>
+        </View>
+      );
+    }
+
+    return (
+      <TouchableOpacity
+        style={styles.quantityBadge}
+        onPress={() => handleQuantityPress(product.id)}
+      >
+        <Text style={styles.quantityBadgeText}>{quantity}</Text>
+      </TouchableOpacity>
+    );
+  };
+
   const renderProductItem = (product: Product) => {
     const imageSource = getImageSource(product);
     const price = product.priceAfterDiscount || product.price;
@@ -96,7 +174,6 @@ const AllCategoriesProductList: React.FC<AllCategoriesProductListProps> = ({
         style={styles.productItem}
         onPress={() => {
           onProductSelect(product);
-          onAddToOrder(product);
         }}
       >
         <View style={styles.productCard}>
@@ -110,7 +187,7 @@ const AllCategoriesProductList: React.FC<AllCategoriesProductListProps> = ({
               />
             ) : (
               <View style={styles.placeholderImage}>
-                <Ionicons name="restaurant" size={32} color="#dee2e6" />
+                <Entypo name="drink" size={32} color="#dee2e6" />
               </View>
             )}
           </View>
@@ -118,17 +195,9 @@ const AllCategoriesProductList: React.FC<AllCategoriesProductListProps> = ({
             <Text style={styles.productTitle} numberOfLines={2}>
               {product.title}
             </Text>
-            <Text style={styles.productPrice}>{formattedPrice}đ</Text>
+            <Text style={styles.productPrice}>{formattedPrice}</Text>
           </View>
-          <TouchableOpacity
-            style={styles.addButton}
-            onPress={(e) => {
-              e.stopPropagation();
-              onAddToOrder(product);
-            }}
-          >
-            <Ionicons name="add" size={16} color="#fff" />
-          </TouchableOpacity>
+          {renderQuantityControls(product)}
         </View>
       </TouchableOpacity>
     );
@@ -153,7 +222,7 @@ const AllCategoriesProductList: React.FC<AllCategoriesProductListProps> = ({
         {/* Products Grid */}
         {products.length === 0 ? (
           <View style={styles.emptySectionContainer}>
-            <Ionicons name="restaurant-outline" size={32} color="#dee2e6" />
+            <MaterialIcons name="no-drinks" size={32} color="#dee2e6" />
             <Text style={styles.emptySectionText}>
               Chưa có sản phẩm trong danh mục này
             </Text>
@@ -179,7 +248,7 @@ const AllCategoriesProductList: React.FC<AllCategoriesProductListProps> = ({
   if (categories.length === 0) {
     return (
       <View style={styles.emptyContainer}>
-        <Ionicons name="restaurant-outline" size={48} color="#dee2e6" />
+        <MaterialIcons name="no-drinks" size={32} color="#dee2e6" />
         <Text style={styles.emptyText}>Chưa có danh mục nào</Text>
       </View>
     );
@@ -215,7 +284,7 @@ const styles = StyleSheet.create({
   },
   sectionHeader: {
     backgroundColor: "#f8f9fa",
-    paddingVertical: 16,
+    paddingVertical: 10,
     paddingHorizontal: 0,
     marginBottom: 12,
     width: "100%",
@@ -247,10 +316,11 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     elevation: 2,
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
-    shadowRadius: 4,
+    shadowRadius: 2,
     position: "relative",
+    height: ITEM_WIDTH * 1.2,
   },
   imageContainer: {
     width: "100%",
@@ -279,7 +349,7 @@ const styles = StyleSheet.create({
     lineHeight: 18,
   },
   productPrice: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: "bold",
     color: "#198754",
   },
@@ -298,6 +368,55 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.2,
     shadowRadius: 2,
+  },
+  quantityBadge: {
+    position: "absolute",
+    bottom: 10,
+    right: 10,
+    backgroundColor: "#fff",
+    borderRadius: 16,
+    width: 30,
+    height: 30,
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#198754",
+  },
+  quantityBadgeText: {
+    color: "#333",
+    fontSize: 14,
+    fontWeight: "bold",
+  },
+  quantityControlsContainer: {
+    position: "absolute",
+    bottom: 10,
+    right: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#ffffff",
+    borderRadius: 20,
+    paddingHorizontal: 2,
+    paddingVertical: 2,
+    borderWidth: 1,
+    borderColor: "#198754",
+    width: 90,
+    justifyContent: "space-between",
+  },
+  quantityButton: {
+    color: "#333",
+    borderRadius: 14,
+    width: 30,
+    height: 24,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  quantityText: {
+    fontSize: 14,
+    fontWeight: "bold",
+    color: "#333",
+    paddingHorizontal: 5,
+    minWidth: 20,
+    textAlign: "center",
   },
   emptySectionContainer: {
     alignItems: "center",
