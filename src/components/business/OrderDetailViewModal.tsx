@@ -17,6 +17,10 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import {
+  calculateOrderSummary,
+  formatPrice as formatPriceUtil,
+} from "../../utils/orderCalculations";
 
 interface OrderDetailViewModalProps {
   visible: boolean;
@@ -49,6 +53,35 @@ export default function OrderDetailViewModal({
     try {
       setLoading(true);
       const detail = await ordersService.getOrderDetail(order.id);
+
+      // Bổ sung các trường thiếu nếu cần
+      if (detail) {
+        // Các trường cấp cao nhất
+        if (detail.LoaiThue === undefined) detail.LoaiThue = "1"; // Mặc định là NVAT
+        if (detail.PriceIncludeVAT === undefined)
+          detail.PriceIncludeVAT = false; // Mặc định giá chưa bao gồm VAT
+        if (detail.DiscountVAT === undefined) detail.DiscountVAT = 0;
+        if (detail.DiscountType === undefined) detail.DiscountType = 0;
+        if (detail.Discount === undefined) detail.Discount = 0;
+
+        // Các trường của sản phẩm
+        if (detail.products && detail.products.length > 0) {
+          detail.products.forEach((product) => {
+            // Mặc định VAT là 10% nếu không có
+            if (product.VAT === undefined) product.VAT = 10;
+            // Tính giá bao gồm VAT nếu không có
+            if (product.priceIncludeVAT === undefined) {
+              product.priceIncludeVAT = product.price * (1 + product.VAT / 100);
+            }
+            // Tính tổng tiền bao gồm VAT nếu không có
+            if (product.totalCostInclideVAT === undefined) {
+              product.totalCostInclideVAT =
+                product.priceIncludeVAT * product.quantity;
+            }
+          });
+        }
+      }
+
       setOrderDetail(detail);
     } catch (error: any) {
       Alert.alert("Lỗi", `Không thể tải chi tiết đơn hàng: ${error.message}`);
@@ -404,28 +437,115 @@ export default function OrderDetailViewModal({
 
             {/* Summary */}
             <View style={styles.summaryContainer}>
-              <View style={styles.summaryRow}>
-                <Text style={styles.summaryLabel}>Tổng tiền:</Text>
-                <Text style={styles.summaryValue}>
-                  {formatPrice(orderDetail.totalAmount)}
-                </Text>
-              </View>
+              {(() => {
+                // Tính toán chi tiết các giá trị
+                const orderSummary = calculateOrderSummary(
+                  orderDetail,
+                  orderDetail.products
+                );
 
-              {orderDetail.discount > 0 && (
-                <View style={styles.summaryRow}>
-                  <Text style={styles.summaryLabel}>Giảm giá:</Text>
-                  <Text style={[styles.summaryValue, styles.discountValue]}>
-                    - {formatPrice(orderDetail.discount)}
-                  </Text>
-                </View>
-              )}
+                // Debug thông tin tính thuế
+                console.log("LoaiThue:", orderDetail.LoaiThue);
+                console.log("PriceIncludeVAT:", orderDetail.PriceIncludeVAT);
+                console.log("TienThue:", orderSummary.tienThue);
+                console.log("DiscountVAT:", orderDetail.DiscountVAT);
+                console.log("Products:", orderDetail.products);
 
-              <View style={styles.summaryRow}>
-                <Text style={styles.summaryLabelTotal}>Thanh toán:</Text>
-                <Text style={styles.summaryValueTotal}>
-                  {formatPrice(orderDetail.totalPayableAmount)}
-                </Text>
-              </View>
+                // Kiểm tra xem có thiếu các trường trong OrderDetail không
+                const missingFields = [];
+                if (orderDetail.LoaiThue === undefined)
+                  missingFields.push("LoaiThue");
+                if (orderDetail.PriceIncludeVAT === undefined)
+                  missingFields.push("PriceIncludeVAT");
+                if (orderDetail.DiscountVAT === undefined)
+                  missingFields.push("DiscountVAT");
+                if (orderDetail.DiscountType === undefined)
+                  missingFields.push("DiscountType");
+                if (orderDetail.Discount === undefined)
+                  missingFields.push("Discount");
+                if (missingFields.length > 0) {
+                  console.log("Missing fields in OrderDetail:", missingFields);
+                }
+
+                // Kiểm tra xem có thiếu các trường trong Product không
+                const productMissingFields = [];
+                if (orderDetail.products.length > 0) {
+                  const firstProduct = orderDetail.products[0];
+                  if (firstProduct.VAT === undefined)
+                    productMissingFields.push("VAT");
+                  if (firstProduct.priceIncludeVAT === undefined)
+                    productMissingFields.push("priceIncludeVAT");
+                  if (firstProduct.totalCostInclideVAT === undefined)
+                    productMissingFields.push("totalCostInclideVAT");
+                  if (productMissingFields.length > 0) {
+                    console.log(
+                      "Missing fields in Product:",
+                      productMissingFields
+                    );
+                  }
+                }
+
+                return (
+                  <>
+                    <View style={styles.summaryRow}>
+                      <Text style={styles.summaryLabel}>TIỀN HÀNG:</Text>
+                      <Text style={styles.summaryValue}>
+                        {formatPriceUtil(orderSummary.tienHang)}
+                      </Text>
+                    </View>
+
+                    {/* Luôn hiển thị TIỀN THUẾ với màu nổi bật */}
+                    <View style={styles.summaryRow}>
+                      <Text
+                        style={[
+                          styles.summaryLabel,
+                          { fontWeight: "bold", color: "#198754" },
+                        ]}
+                      >
+                        TIỀN THUẾ:
+                      </Text>
+                      <Text
+                        style={[
+                          styles.summaryValue,
+                          { fontWeight: "bold", color: "#198754" },
+                        ]}
+                      >
+                        {formatPriceUtil(orderSummary.tienThue)}
+                      </Text>
+                    </View>
+
+                    {orderDetail.discount > 0 && (
+                      <View style={styles.summaryRow}>
+                        <Text style={styles.summaryLabel}>Giảm giá:</Text>
+                        <Text
+                          style={[styles.summaryValue, styles.discountValue]}
+                        >
+                          - {formatPrice(orderDetail.discount)}
+                        </Text>
+                      </View>
+                    )}
+
+                    {orderDetail.Voucher && (
+                      <View style={styles.summaryRow}>
+                        <Text style={styles.summaryLabel}>Voucher:</Text>
+                        <Text
+                          style={[styles.summaryValue, styles.discountValue]}
+                        >
+                          - {formatPrice(orderDetail.Voucher.discount)} (
+                          {orderDetail.Voucher.voucherCode})
+                        </Text>
+                      </View>
+                    )}
+
+                    <View style={[styles.summaryRow, styles.summaryRowTotal]}>
+                      <Text style={styles.summaryLabelTotal}>PHẢI THU:</Text>
+                      <Text style={styles.summaryValueTotal}>
+                        {formatPriceUtil(orderSummary.phaiThu)}
+                      </Text>
+                    </View>
+                  </>
+                );
+              })()}
             </View>
 
             {/* Action Buttons */}
@@ -632,6 +752,12 @@ const styles = StyleSheet.create({
   },
   discountValue: {
     color: "#dc3545",
+  },
+  summaryRowTotal: {
+    marginTop: 8,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: "#f0f0f0",
   },
   summaryLabelTotal: {
     fontSize: 16,

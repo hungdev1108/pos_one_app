@@ -218,7 +218,7 @@ export interface Voucher {
   discountIncludeVAT: number;
 }
 
-// Order List Item Interface
+// Order List Item Interface (sử dụng Voucher interface mới ở dưới)
 export interface OrderListItem {
   id: string;
   code: string;
@@ -257,10 +257,29 @@ export interface OrderDetailProduct {
   id: string;
   productName: string;
   quantity: number;
-  price: number;
-  totalCost: number;
+  price: number; // Giá trước thuế
+  priceIncludeVAT: number; // Giá sau thuế
+  totalCost: number; // Tổng tiền trước thuế (Price * Quantity)
+  totalCostInclideVAT: number; // Tổng tiền sau thuế (PriceIncludeVAT * Quantity)
+  VAT: number; // Mức thuế VAT (0, 5, 8, 10)
   isConfirm: boolean;
   note?: string;
+}
+
+// Voucher Detail Interface
+export interface VoucherDetail {
+  id: string;
+  DiscountBefortVAT: number; // Giảm giá trước VAT
+  DiscountAfterVAT: number; // Giảm giá sau VAT
+}
+
+// Voucher Interface với Details
+export interface VoucherExtended {
+  id: string;
+  voucherCode: string;
+  discount: number;
+  discountIncludeVAT: number;
+  Details?: VoucherDetail[]; // Chi tiết giảm giá theo từng mức VAT
 }
 
 // Order Detail Interface
@@ -276,6 +295,16 @@ export interface OrderDetail {
   totalAmount: number;
   discount: number;
   totalPayableAmount: number;
+  // Thông tin giảm giá
+  DiscountType: number; // 0: Không giảm, 1: %, 2: Số tiền, 3: Đến mức giá
+  Discount: number; // Giá trị giảm giá
+  DiscountVAT: number; // Mức VAT được áp dụng giảm giá (0, 5, 8, 10)
+  // Thông tin thuế
+  PriceIncludeVAT: boolean; // Cờ xác định giá đã bao gồm VAT hay chưa
+  LoaiThue: string; // "0": 0VAT, "1": NVAT
+  // Thông tin voucher
+  Voucher?: VoucherExtended;
+  // Các ngày tháng
   createDate: string;
   confirmDate?: string;
   sendDate?: string;
