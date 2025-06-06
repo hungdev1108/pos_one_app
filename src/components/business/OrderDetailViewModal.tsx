@@ -1,8 +1,10 @@
 import {
+  KitchenPrintData,
   OrderDetail,
   OrderDetailProduct,
   OrderListItem,
   ordersService,
+  PrintOrderData,
 } from "@/api";
 import { Ionicons } from "@expo/vector-icons";
 import React, { useEffect, useState } from "react";
@@ -145,111 +147,172 @@ export default function OrderDetailViewModal({
       | "send"
       | "receive"
       | "cancel"
-      | "print_kitchen"
-      | "print_temp"
-      | "print_bill"
+      | "delete"
+      | "printKitchen"
+      | "printBill"
+      | "printReceipt"
   ) => {
     if (!orderDetail) return;
 
+    let confirmTitle = "";
+    let confirmText = "";
+
+    switch (action) {
+      case "confirm":
+        confirmTitle = "Xác nhận đơn hàng";
+        confirmText = "Bạn có chắc muốn xác nhận đơn hàng này?";
+        break;
+      case "send":
+        confirmTitle = "Phục vụ đơn hàng";
+        confirmText =
+          "Xác nhận phục vụ đơn hàng này? Đơn hàng sẽ chuyển sang trạng thái tạm tính.";
+        break;
+      case "receive":
+        confirmTitle = "Thanh toán";
+        confirmText = "Xác nhận đã nhận thanh toán cho đơn hàng này?";
+        break;
+      case "cancel":
+        confirmTitle = "Hủy đơn hàng";
+        confirmText = "Bạn có chắc muốn hủy đơn hàng này?";
+        break;
+      case "delete":
+        confirmTitle = "Xóa đơn hàng";
+        confirmText =
+          "Bạn có chắc muốn xóa đơn hàng này? Hành động này không thể hoàn tác.";
+        break;
+      case "printKitchen":
+        confirmTitle = "In phiếu chế biến";
+        confirmText = "Bạn có muốn in phiếu chế biến?";
+        break;
+      case "printBill":
+        confirmTitle = "In tạm tính";
+        confirmText = "Bạn có muốn in hóa đơn tạm tính?";
+        break;
+      case "printReceipt":
+        confirmTitle = "In hóa đơn";
+        confirmText = "Bạn có muốn in hóa đơn thanh toán?";
+        break;
+    }
+
+    Alert.alert(confirmTitle, confirmText, [
+      { text: "Hủy", style: "cancel" },
+      {
+        text: "Xác nhận",
+        onPress: async () => {
+          try {
+            switch (action) {
+              case "confirm":
+                await ordersService.confirmOrder(orderDetail.id);
+                break;
+              case "send":
+                await ordersService.sendOrder(orderDetail.id);
+                break;
+              case "receive":
+                await ordersService.receiveOrder(orderDetail.id);
+                break;
+              case "cancel":
+                await ordersService.cancelOrder(orderDetail.id);
+                break;
+              case "delete":
+                await ordersService.deleteOrder(orderDetail.id);
+                onClose(); // Đóng modal sau khi xóa
+                break;
+              case "printKitchen":
+                await handlePrintKitchen();
+                return; // Không reload vì chỉ in
+              case "printBill":
+                await handlePrintBill();
+                return; // Không reload vì chỉ in
+              case "printReceipt":
+                await handlePrintReceipt();
+                return; // Không reload vì chỉ in
+            }
+
+            // Reload order detail sau khi thao tác thành công
+            await loadOrderDetail();
+            onRefresh?.();
+
+            Alert.alert("Thành công", "Thao tác đã được thực hiện.");
+          } catch (error: any) {
+            Alert.alert("Lỗi", error.message || "Có lỗi xảy ra.");
+          }
+        },
+      },
+    ]);
+  };
+
+  const handlePrintKitchen = async () => {
     try {
-      let actionText = "";
-      let confirmText = "";
-      let isApiCall = true;
+      if (!orderDetail) return;
 
-      switch (action) {
-        case "confirm":
-          actionText = "xác nhận";
-          confirmText = "Bạn có chắc muốn xác nhận đơn hàng này?";
-          break;
-        case "send":
-          actionText = "phục vụ";
-          confirmText = "Xác nhận phục vụ đơn hàng này?";
-          break;
-        case "receive":
-          actionText = "thanh toán";
-          confirmText = "Xác nhận đã nhận thanh toán cho đơn hàng này?";
-          break;
-        case "cancel":
-          actionText = "hủy";
-          confirmText = "Bạn có chắc muốn hủy đơn hàng này?";
-          break;
-        case "print_kitchen":
-          actionText = "in chế biến";
-          confirmText = "Bạn có muốn in phiếu chế biến?";
-          isApiCall = false;
-          break;
-        case "print_temp":
-          actionText = "in tạm tính";
-          confirmText = "Bạn có muốn in hóa đơn tạm tính?";
-          isApiCall = false;
-          break;
-        case "print_bill":
-          actionText = "in hóa đơn";
-          confirmText = "Bạn có muốn in hóa đơn thanh toán?";
-          isApiCall = false;
-          break;
-      }
+      console.log("🍳 Printing kitchen order for:", orderDetail.code);
+      const kitchenData: KitchenPrintData = await ordersService.printKitchen(
+        orderDetail.id
+      );
 
+      // TODO: Implement actual printing logic
+      // For now, just show the data
+      console.log("Kitchen print data:", kitchenData);
       Alert.alert(
-        `${actionText.charAt(0).toUpperCase() + actionText.slice(1)} đơn hàng`,
-        confirmText,
-        [
-          { text: "Không", style: "cancel" },
-          {
-            text: "Có",
-            onPress: async () => {
-              try {
-                if (isApiCall) {
-                  switch (action) {
-                    case "confirm":
-                      await ordersService.confirmOrder(orderDetail.id);
-                      break;
-                    case "send":
-                      await ordersService.sendOrder(orderDetail.id);
-                      break;
-                    case "receive":
-                      await ordersService.receiveOrder(orderDetail.id);
-                      break;
-                    case "cancel":
-                      await ordersService.cancelOrder(orderDetail.id);
-                      break;
-                  }
-                } else {
-                  // Xử lý in hóa đơn ở đây
-                  switch (action) {
-                    case "print_kitchen":
-                      // Xử lý in phiếu chế biến
-                      break;
-                    case "print_temp":
-                      // Xử lý in hóa đơn tạm tính
-                      break;
-                    case "print_bill":
-                      // Xử lý in hóa đơn thanh toán
-                      break;
-                  }
-                }
-
-                Alert.alert(
-                  "Thành công",
-                  `Đã ${actionText} đơn hàng thành công!`
-                );
-
-                if (isApiCall) {
-                  await loadOrderDetail();
-                  onRefresh?.();
-                }
-              } catch (error: any) {
-                Alert.alert(
-                  "Lỗi",
-                  `Không thể ${actionText} đơn hàng: ${error.message}`
-                );
-              }
-            },
-          },
-        ]
+        "In phiếu chế biến",
+        `Đã tạo phiếu chế biến cho đơn hàng ${kitchenData.orderCode}.\n` +
+          `Bàn: ${kitchenData.tableName}\n` +
+          `Số món: ${kitchenData.products.length}`,
+        [{ text: "OK" }]
       );
     } catch (error: any) {
-      Alert.alert("Lỗi", `Có lỗi xảy ra: ${error.message}`);
+      console.error("❌ Error printing kitchen order:", error);
+      Alert.alert("Lỗi", error.message || "Không thể in phiếu chế biến.");
+    }
+  };
+
+  const handlePrintBill = async () => {
+    try {
+      if (!orderDetail) return;
+
+      console.log("🧾 Printing bill for:", orderDetail.code);
+      const printData: PrintOrderData = await ordersService.getPrintData(
+        orderDetail.id
+      );
+
+      // TODO: Implement actual printing logic
+      // For now, just show the data
+      console.log("Print bill data:", printData);
+      Alert.alert(
+        "In tạm tính",
+        `Đã tạo hóa đơn tạm tính cho đơn hàng ${printData.orderCode}.\n` +
+          `Khách hàng: ${printData.customerName}\n` +
+          `Tổng tiền: ${formatPrice(printData.totalPayableAmount)}`,
+        [{ text: "OK" }]
+      );
+    } catch (error: any) {
+      console.error("❌ Error printing bill:", error);
+      Alert.alert("Lỗi", error.message || "Không thể in hóa đơn tạm tính.");
+    }
+  };
+
+  const handlePrintReceipt = async () => {
+    try {
+      if (!orderDetail) return;
+
+      console.log("🧾 Printing receipt for:", orderDetail.code);
+      const receiptData: PrintOrderData = await ordersService.printReceipt(
+        orderDetail.id
+      );
+
+      // TODO: Implement actual printing logic
+      // For now, just show the data
+      console.log("Receipt data:", receiptData);
+      Alert.alert(
+        "In hóa đơn",
+        `Đã tạo hóa đơn thanh toán cho đơn hàng ${receiptData.orderCode}.\n` +
+          `Khách hàng: ${receiptData.customerName}\n` +
+          `Tổng tiền: ${formatPrice(receiptData.totalPayableAmount)}`,
+        [{ text: "OK" }]
+      );
+    } catch (error: any) {
+      console.error("❌ Error printing receipt:", error);
+      Alert.alert("Lỗi", error.message || "Không thể in hóa đơn thanh toán.");
     }
   };
 
@@ -257,77 +320,128 @@ export default function OrderDetailViewModal({
     if (!orderDetail) return null;
 
     const buttons = [];
-    const status = getOrderStatus();
 
-    if (status === "Đơn mới") {
+    // Print buttons - available for all confirmed orders
+    if (orderDetail.confirmDate) {
+      buttons.push(
+        <TouchableOpacity
+          key="printKitchen"
+          style={[styles.actionButton, styles.printButton]}
+          onPress={() => handleOrderAction("printKitchen")}
+        >
+          <Ionicons name="restaurant" size={16} color="#fff" />
+          <Text style={styles.actionButtonText}>In chế biến</Text>
+        </TouchableOpacity>
+      );
+    }
+
+    // Print bill - available for sent orders
+    if (orderDetail.sendDate) {
+      buttons.push(
+        <TouchableOpacity
+          key="printBill"
+          style={[styles.actionButton, styles.printButton]}
+          onPress={() => handleOrderAction("printBill")}
+        >
+          <Ionicons name="receipt" size={16} color="#fff" />
+          <Text style={styles.actionButtonText}>In tạm tính</Text>
+        </TouchableOpacity>
+      );
+    }
+
+    // Print receipt - available for received orders
+    if (orderDetail.receiveDate) {
+      buttons.push(
+        <TouchableOpacity
+          key="printReceipt"
+          style={[styles.actionButton, styles.printButton]}
+          onPress={() => handleOrderAction("printReceipt")}
+        >
+          <Ionicons name="document-text" size={16} color="#fff" />
+          <Text style={styles.actionButtonText}>In hóa đơn</Text>
+        </TouchableOpacity>
+      );
+    }
+
+    // Confirm button - only for new orders
+    if (!orderDetail.confirmDate && !orderDetail.cancelDate) {
       buttons.push(
         <TouchableOpacity
           key="confirm"
           style={[styles.actionButton, styles.confirmButton]}
           onPress={() => handleOrderAction("confirm")}
         >
-          <Ionicons name="checkmark" size={20} color="#fff" />
+          <Ionicons name="checkmark-circle" size={16} color="#fff" />
           <Text style={styles.actionButtonText}>Xác nhận</Text>
         </TouchableOpacity>
       );
-    } else if (status === "Đã xác nhận") {
+    }
+
+    // Send button - only for confirmed orders
+    if (
+      orderDetail.confirmDate &&
+      !orderDetail.sendDate &&
+      !orderDetail.cancelDate
+    ) {
       buttons.push(
         <TouchableOpacity
           key="send"
           style={[styles.actionButton, styles.sendButton]}
           onPress={() => handleOrderAction("send")}
         >
-          <Ionicons name="restaurant" size={20} color="#fff" />
+          <Ionicons name="send" size={16} color="#fff" />
           <Text style={styles.actionButtonText}>Phục vụ</Text>
         </TouchableOpacity>
       );
+    }
 
-      buttons.push(
-        <TouchableOpacity
-          key="print_kitchen"
-          style={[styles.actionButton, styles.printButton]}
-          onPress={() => handleOrderAction("print_kitchen")}
-        >
-          <Ionicons name="print" size={20} color="#fff" />
-          <Text style={styles.actionButtonText}>In chế biến</Text>
-        </TouchableOpacity>
-      );
-    } else if (status === "Tạm tính") {
+    // Receive button - only for sent orders
+    if (
+      orderDetail.sendDate &&
+      !orderDetail.receiveDate &&
+      !orderDetail.cancelDate
+    ) {
       buttons.push(
         <TouchableOpacity
           key="receive"
           style={[styles.actionButton, styles.receiveButton]}
           onPress={() => handleOrderAction("receive")}
         >
-          <Ionicons name="card" size={20} color="#fff" />
+          <Ionicons name="cash" size={16} color="#fff" />
           <Text style={styles.actionButtonText}>Thanh toán</Text>
-        </TouchableOpacity>
-      );
-
-      buttons.push(
-        <TouchableOpacity
-          key="print_temp"
-          style={[styles.actionButton, styles.printButton]}
-          onPress={() => handleOrderAction("print_temp")}
-        >
-          <Ionicons name="print" size={20} color="#fff" />
-          <Text style={styles.actionButtonText}>In tạm tính</Text>
-        </TouchableOpacity>
-      );
-    } else if (status === "Đã thanh toán") {
-      buttons.push(
-        <TouchableOpacity
-          key="print_bill"
-          style={[styles.actionButton, styles.printButton]}
-          onPress={() => handleOrderAction("print_bill")}
-        >
-          <Ionicons name="print" size={20} color="#fff" />
-          <Text style={styles.actionButtonText}>In hóa đơn</Text>
         </TouchableOpacity>
       );
     }
 
-    return buttons;
+    // Cancel button - only for non-completed orders
+    if (!orderDetail.receiveDate && !orderDetail.cancelDate) {
+      buttons.push(
+        <TouchableOpacity
+          key="cancel"
+          style={[styles.actionButton, styles.cancelButton]}
+          onPress={() => handleOrderAction("cancel")}
+        >
+          <Ionicons name="close-circle" size={16} color="#fff" />
+          <Text style={styles.actionButtonText}>Hủy</Text>
+        </TouchableOpacity>
+      );
+    }
+
+    // Delete button - only for cancelled orders
+    if (orderDetail.cancelDate) {
+      buttons.push(
+        <TouchableOpacity
+          key="delete"
+          style={[styles.actionButton, styles.deleteButton]}
+          onPress={() => handleOrderAction("delete")}
+        >
+          <Ionicons name="trash" size={16} color="#fff" />
+          <Text style={styles.actionButtonText}>Xóa</Text>
+        </TouchableOpacity>
+      );
+    }
+
+    return <View style={styles.actionButtonsContainer}>{buttons}</View>;
   };
 
   const renderOrderDetailProduct = ({ item }: { item: OrderDetailProduct }) => {
@@ -797,15 +911,27 @@ const styles = StyleSheet.create({
     backgroundColor: "#fd7e14",
   },
   receiveButton: {
-    backgroundColor: "#20c997",
+    backgroundColor: "#198754",
   },
   printButton: {
     backgroundColor: "#6c757d",
+  },
+  cancelButton: {
+    backgroundColor: "#ffc107",
+  },
+  deleteButton: {
+    backgroundColor: "#dc3545",
   },
   actionButtonText: {
     fontSize: 14,
     fontWeight: "bold",
     color: "#fff",
     marginLeft: 8,
+  },
+  actionButtonsContainer: {
+    flexDirection: "row",
+    justifyContent: "center",
+    flexWrap: "wrap",
+    gap: 12,
   },
 });

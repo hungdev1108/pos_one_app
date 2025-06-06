@@ -5,6 +5,7 @@ import React, { useRef, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import {
   Alert,
+  Image,
   Keyboard,
   KeyboardAvoidingView,
   Platform,
@@ -117,9 +118,16 @@ export default function LoginScreen() {
             <View style={styles.content}>
               {/* Header */}
               <View style={styles.header}>
-                <View style={styles.titleContainer}>
+                {/* <View style={styles.titleContainer}>
                   <Text style={styles.posText}>POS</Text>
                   <Text style={styles.oneText}> ONE</Text>
+                </View> */}
+                {/* Logo */}
+                <View style={styles.logoContainer}>
+                  <Image
+                    source={require("../assets/images/POS-ONE-LOGO.png")}
+                    style={styles.logo}
+                  />
                 </View>
                 <Text style={styles.subtitle}>Phần mềm quản lý kinh doanh</Text>
               </View>
@@ -262,6 +270,22 @@ export default function LoginScreen() {
 }
 
 const styles = StyleSheet.create({
+  logoContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 8,
+  },
+  logo: {
+    width: 200,
+    height: 100,
+    objectFit: "contain",
+    shadowColor: "#fff",
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.4,
+    shadowRadius: 4,
+    elevation: 4,
+  },
   container: {
     flex: 1,
     backgroundColor: "#f8f9fa",
@@ -301,8 +325,9 @@ const styles = StyleSheet.create({
     letterSpacing: 2,
   },
   subtitle: {
-    fontSize: 16,
+    fontSize: 18,
     color: "#666",
+    fontWeight: "600",
     textAlign: "center",
   },
   formContainer: {
@@ -401,7 +426,7 @@ const styles = StyleSheet.create({
   },
   companyName: {
     fontSize: 18,
-    color: "#2196F3",
+    color: "#5470ff",
     fontWeight: "bold",
     marginBottom: 8,
   },

@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { StatusBar } from "expo-status-bar";
 import React from "react";
-import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Image, StyleSheet, TouchableOpacity, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 interface AppBarProps {
@@ -29,23 +29,23 @@ export default function AppBar({ onMenuPress, onReloadPress }: AppBarProps) {
           onPress={onMenuPress}
           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
         >
-          <Ionicons name="menu" size={24} color="#fff" />
+          <Ionicons name="menu" size={24} color="#5470ff" />
         </TouchableOpacity>
 
         {/* Title */}
-        <View style={styles.titleContainer}>
+        {/* <View style={styles.titleContainer}>
           <Ionicons name="logo-stackoverflow" size={24} color="#fff" />
           <Text style={styles.posText}>POS</Text>
           <Text style={styles.oneText}> ONE</Text>
-        </View>
+        </View> */}
 
         {/* Logo */}
-        {/* <View style={styles.logoContainer}>
+        <View style={styles.logoContainer}>
           <Image
             style={styles.logo}
             source={require("../../../assets/images/POS-ONE-LOGO.png")}
           />
-        </View> */}
+        </View>
 
         {/* Reload Button */}
         <TouchableOpacity
@@ -53,7 +53,7 @@ export default function AppBar({ onMenuPress, onReloadPress }: AppBarProps) {
           onPress={onReloadPress}
           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
         >
-          <Ionicons name="refresh" size={24} color="#fff" />
+          <Ionicons name="refresh" size={24} color="#666" />
         </TouchableOpacity>
       </View>
     </>
@@ -70,21 +70,23 @@ const styles = StyleSheet.create({
     width: 160,
     height: 50,
     objectFit: "contain",
-    backgroundColor: "#fff",
-    borderRadius: 28,
-    // paddingHorizontal: 10,
+    shadowColor: "#fff",
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.4,
+    shadowRadius: 4,
+    elevation: 4,
   },
   container: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#198754",
+    backgroundColor: "#fff",
     paddingHorizontal: 10,
     paddingBottom: 12,
     elevation: 4,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
-    shadowRadius: 4,
+    shadowRadius: 1,
     zIndex: 1000,
     // Đảm bảo AppBar luôn hiển thị trên cùng
     position: "relative",

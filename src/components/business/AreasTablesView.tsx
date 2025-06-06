@@ -19,6 +19,7 @@ interface AreasTablesViewProps {
   onRefresh?: () => void;
   onTablePress?: (table: Table) => void;
   onAreaPress?: (area: Area) => void;
+  selectedTable?: Table | null;
 }
 
 const { width } = Dimensions.get("window");
@@ -29,6 +30,7 @@ const AreasTablesView: React.FC<AreasTablesViewProps> = ({
   onRefresh,
   onTablePress,
   onAreaPress,
+  selectedTable,
 }) => {
   const getTableStatusColor = (status: TableStatus) => {
     switch (status) {
@@ -74,6 +76,7 @@ const AreasTablesView: React.FC<AreasTablesViewProps> = ({
     const statusColor = getTableStatusColor(table.status);
     const statusText = getTableStatusText(table.status);
     const statusIcon = getTableStatusIcon(table.status);
+    const isSelected = selectedTable?.id === table.id;
 
     // Tính tổng số lượng món
     const totalQuantity =
@@ -91,7 +94,11 @@ const AreasTablesView: React.FC<AreasTablesViewProps> = ({
     if (table.status === TableStatus.Available || !table.order) {
       return (
         <TouchableOpacity
-          style={[styles.tableCardEmpty, { borderLeftColor: statusColor }]}
+          style={[
+            styles.tableCardEmpty,
+            // { borderLeftColor: statusColor },
+            isSelected && styles.selectedTableCard,
+          ]}
           onPress={() => onTablePress?.(table)}
           key={table.id}
         >
@@ -104,7 +111,7 @@ const AreasTablesView: React.FC<AreasTablesViewProps> = ({
             <Text style={styles.tableNameLarge} numberOfLines={1}>
               {table.name}
             </Text>
-            <View
+            {/* <View
               style={[
                 styles.statusBadgeLarge,
                 { backgroundColor: statusColor },
@@ -112,7 +119,7 @@ const AreasTablesView: React.FC<AreasTablesViewProps> = ({
             >
               <Ionicons name={statusIcon} size={14} color="#fff" />
               <Text style={styles.statusTextLarge}>{statusText}</Text>
-            </View>
+            </View> */}
           </View>
         </TouchableOpacity>
       );
@@ -121,7 +128,11 @@ const AreasTablesView: React.FC<AreasTablesViewProps> = ({
     // Layout cho bàn có khách (giữ nguyên như hiện tại)
     return (
       <TouchableOpacity
-        style={[styles.tableCard, { borderLeftColor: statusColor }]}
+        style={[
+          styles.tableCard,
+          // { borderLeftColor: statusColor },
+          isSelected && styles.selectedTableCard,
+        ]}
         onPress={() => onTablePress?.(table)}
         key={table.id}
       >
@@ -490,6 +501,16 @@ const styles = StyleSheet.create({
   emptyText: {
     fontSize: 16,
     color: "#666",
+    marginTop: 10,
+  },
+  selectedTableCard: {
+    backgroundColor: "#ffe6e6", // Màu đỏ nhạt
+    borderWidth: 1,
+    borderColor: "#ff9999",
+  },
+  areaStatsText: {
+    fontSize: 12,
+    color: "#6c757d",
     marginTop: 10,
   },
 });

@@ -6,6 +6,7 @@ import {
   Alert,
   Animated,
   Dimensions,
+  Image,
   Modal,
   ScrollView,
   StyleSheet,
@@ -98,11 +99,20 @@ export default function DrawerMenu({
                 },
               ]}
             >
-              <View style={styles.logoContainer}>
+              {/* <View style={styles.logoContainer}>
                 <Text style={styles.posText}>POS</Text>
                 <Text style={styles.oneText}> ONE</Text>
+              </View> */}
+
+              {/* Logo */}
+              <View style={styles.logoContainer}>
+                <Image
+                  style={styles.logo}
+                  source={require("../../../assets/images/LOGO_POS_2.png")}
+                />
               </View>
-              <Text style={styles.subtitle}>Quản lý kinh doanh</Text>
+
+              <Text style={styles.subtitle}>Phần mềm quản lý kinh doanh</Text>
             </View>
 
             {/* Scrollable Content */}
@@ -174,6 +184,22 @@ export default function DrawerMenu({
 }
 
 const styles = StyleSheet.create({
+  logoContainer: {
+    // flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 8,
+  },
+  logo: {
+    // width: 100,
+    height: 70,
+    objectFit: "contain",
+    shadowColor: "#fff",
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.4,
+    shadowRadius: 4,
+    elevation: 4,
+  },
   overlay: {
     flex: 1,
     backgroundColor: "rgba(0, 0, 0, 0.5)",
@@ -197,11 +223,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     alignItems: "center",
   },
-  logoContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 8,
-  },
+  // logoContainer: {
+  //   flexDirection: "row",
+  //   alignItems: "center",
+  //   marginBottom: 8,
+  // },
   posText: {
     fontSize: 28,
     fontWeight: "bold",
@@ -215,9 +241,10 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
   },
   subtitle: {
-    fontSize: 14,
-    color: "rgba(255, 255, 255, 0.9)",
+    fontSize: 16,
+    color: "#fff",
     textAlign: "center",
+    fontWeight: "600",
   },
   scrollContent: {
     flex: 1,

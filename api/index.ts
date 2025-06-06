@@ -17,13 +17,14 @@ export {
 export type {
     ApiError,
     ApiRequestConfig,
-    ApiResponse, Area, AreaDetailResponse, AreasResponse, Category, ConfigResponse, Customer, FnBConfig, JwtClaims, LoginRequest,
+    ApiResponse, Area, AreaDetailResponse, AreasResponse, Category, ConfigResponse, CreateOrderRequest, CreateOrderResponse, Customer, FnBConfig, JwtClaims, KitchenPrintData, LoginRequest,
     LoginResponse, Order, OrderDetail, OrderDetailProduct, OrderListItem, OrderOperationResponse, OrderProduct,
+    OrderProductRequest,
     // New Order types
     OrderStatus, OrdersListResponse,
-    OrdersRequestParams, Product,
-    ProductsResponse, Table, TableDetailResponse, TableStatus, TablesResponse, Unit, User,
-    UserInfo, Voucher, VoucherDetail, VoucherExtended
+    OrdersRequestParams, PrintOrderData, Product,
+    ProductsResponse, Table, TableDetailResponse, TableStatus, TablesResponse, Unit, UpdateOrderRequest, User,
+    UserInfo, Voucher, VoucherDetail, VoucherExtended, VoucherRequest
 } from './types';
 
 // Export constants

@@ -1,11 +1,17 @@
 import { apiClient } from "../client";
 import {
-    FnBConfig,
-    OrderDetail,
-    OrderListItem,
-    OrderOperationResponse,
-    OrdersListResponse,
-    OrdersRequestParams
+  CreateOrderRequest,
+  CreateOrderResponse,
+  FnBConfig,
+  KitchenPrintData,
+  OrderDetail,
+  OrderListItem,
+  OrderOperationResponse,
+  OrderProductRequest,
+  OrdersListResponse,
+  OrdersRequestParams,
+  PrintOrderData,
+  UpdateOrderRequest
 } from "../types";
 
 /**
@@ -458,6 +464,180 @@ class OrdersService {
       throw new Error(response.data?.error || "Lỗi khi xóa đơn hàng");
     } catch (error: any) {
       console.error("❌ Error deleting order:", error);
+      throw error;
+    }
+  }
+
+  // ===== ORDER CREATION & MANAGEMENT =====
+  /**
+   * Tạo đơn hàng mới
+   */
+  async createOrder(orderData: CreateOrderRequest): Promise<CreateOrderResponse> {
+    try {
+      console.log('➕ Creating new order:', orderData);
+      
+      const response = await apiClient.post<CreateOrderResponse>(
+        this.baseUrl,
+        orderData
+      );
+
+      console.log('✅ Order created successfully:', response);
+
+      if (response && response.successful) {
+        return response;
+      }
+
+      throw new Error(response?.error || "Lỗi khi tạo đơn hàng");
+    } catch (error: any) {
+      console.error("❌ Error creating order:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * Cập nhật thông tin đơn hàng
+   */
+  async updateOrder(orderId: string, orderData: UpdateOrderRequest): Promise<OrderOperationResponse> {
+    try {
+      console.log('🔄 Updating order:', orderId, orderData);
+      
+      const response = await apiClient.put<OrderOperationResponse>(
+        `${this.baseUrl}/${orderId}`,
+        orderData
+      );
+
+      console.log('✅ Order updated successfully:', response);
+
+      if (response && response.successful) {
+        return response;
+      }
+
+      throw new Error(response?.error || "Lỗi khi cập nhật đơn hàng");
+    } catch (error: any) {
+      console.error("❌ Error updating order:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * Thêm/cập nhật sản phẩm trong đơn hàng
+   */
+  async updateOrderProducts(orderId: string, products: OrderProductRequest[]): Promise<OrderOperationResponse> {
+    try {
+      console.log('🍽️ Updating order products:', orderId, products);
+      
+      const response = await apiClient.put<OrderOperationResponse>(
+        `${this.baseUrl}/${orderId}/products`,
+        { products }
+      );
+
+      console.log('✅ Order products updated successfully:', response);
+
+      if (response && response.successful) {
+        return response;
+      }
+
+      throw new Error(response?.error || "Lỗi khi cập nhật sản phẩm đơn hàng");
+    } catch (error: any) {
+      console.error("❌ Error updating order products:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * Xóa sản phẩm khỏi đơn hàng
+   */
+  async removeOrderProduct(orderId: string, productId: string): Promise<OrderOperationResponse> {
+    try {
+      console.log('🗑️ Removing product from order:', orderId, productId);
+      
+      const response = await apiClient.delete<OrderOperationResponse>(
+        `${this.baseUrl}/${orderId}/products/${productId}`
+      );
+
+      console.log('✅ Product removed successfully:', response);
+
+      if (response && response.successful) {
+        return response;
+      }
+
+      throw new Error(response?.error || "Lỗi khi xóa sản phẩm khỏi đơn hàng");
+    } catch (error: any) {
+      console.error("❌ Error removing product from order:", error);
+      throw error;
+    }
+  }
+
+  // ===== PRINTING FUNCTIONS =====
+  /**
+   * Lấy dữ liệu in tạm tính
+   */
+  async getPrintData(orderId: string): Promise<PrintOrderData> {
+    try {
+      console.log('🖨️ Getting print data for order:', orderId);
+      
+      const response = await apiClient.get<PrintOrderData>(
+        `${this.baseUrl}/${orderId}/print`
+      );
+
+      console.log('✅ Print data loaded:', response);
+
+      if (response && typeof response === 'object') {
+        return response;
+      }
+
+      throw new Error("Lỗi khi tải dữ liệu in tạm tính");
+    } catch (error: any) {
+      console.error("❌ Error loading print data:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * In phiếu chế biến
+   */
+  async printKitchen(orderId: string, printGroupId?: string): Promise<KitchenPrintData> {
+    try {
+      console.log('🍳 Printing kitchen order:', orderId, printGroupId);
+      
+      const params = printGroupId ? `?printGroupId=${printGroupId}` : '';
+      const response = await apiClient.post<KitchenPrintData>(
+        `${this.baseUrl}/${orderId}/print/kitchen${params}`
+      );
+
+      console.log('✅ Kitchen print data:', response);
+
+      if (response && typeof response === 'object') {
+        return response;
+      }
+
+      throw new Error("Lỗi khi in phiếu chế biến");
+    } catch (error: any) {
+      console.error("❌ Error printing kitchen order:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * In hóa đơn thanh toán
+   */
+  async printReceipt(orderId: string): Promise<PrintOrderData> {
+    try {
+      console.log('🧾 Printing receipt for order:', orderId);
+      
+      const response = await apiClient.post<PrintOrderData>(
+        `${this.baseUrl}/${orderId}/print/receipt`
+      );
+
+      console.log('✅ Receipt print data:', response);
+
+      if (response && typeof response === 'object') {
+        return response;
+      }
+
+      throw new Error("Lỗi khi in hóa đơn thanh toán");
+    } catch (error: any) {
+      console.error("❌ Error printing receipt:", error);
       throw error;
     }
   }

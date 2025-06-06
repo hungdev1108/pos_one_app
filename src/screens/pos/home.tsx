@@ -17,11 +17,11 @@ import {
 import AllCategoriesProductList from "@/src/components/business/AllCategoriesProductList";
 import AreasTablesView from "@/src/components/business/AreasTablesView";
 import CategoryBottomSheet from "@/src/components/business/CategoryBottomSheet";
+import CreateOrderModal from "@/src/components/business/CreateOrderModal";
 import OrderBottomSheet from "@/src/components/business/OrderBottomSheet";
-import OrderDetailsModal from "@/src/components/business/OrderDetailsModal";
-import OrderDetailViewModal from "@/src/components/business/OrderDetailViewModal";
+import OrderDetailModal from "@/src/components/business/OrderDetailModal";
 import OrdersView from "@/src/components/business/OrdersView";
-import TableDetailModal from "@/src/components/business/TableDetailModal";
+import UnifiedOrderModal from "@/src/components/business/UnifiedOrderModal";
 import AppBar from "@/src/components/common/AppBar";
 import DrawerMenu from "@/src/components/common/DrawerMenu";
 
@@ -30,6 +30,7 @@ interface OrderItem {
   title: string;
   price: number;
   quantity: number;
+  product: Product;
 }
 
 // Enum để quản lý tab hiện tại
@@ -54,9 +55,9 @@ export default function HomeScreen() {
     null
   );
   const [selectedTable, setSelectedTable] = useState<Table | null>(null);
+  const [selectedTableForOrder, setSelectedTableForOrder] =
+    useState<Table | null>(null);
   const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
-  const [orderDetailsVisible, setOrderDetailsVisible] = useState(false);
-  const [tableDetailVisible, setTableDetailVisible] = useState(false);
   const [loading, setLoading] = useState(true);
   const [categoriesLoading, setCategoriesLoading] = useState(true);
   const [productsLoading, setProductsLoading] = useState(true);
@@ -67,10 +68,13 @@ export default function HomeScreen() {
   const [activeTab, setActiveTab] = useState<TabType>(TabType.MENU);
   const [categoryBottomSheetVisible, setCategoryBottomSheetVisible] =
     useState(false);
-  const [orderDetailViewVisible, setOrderDetailViewVisible] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<OrderListItem | undefined>(
     undefined
   );
+  const [createOrderVisible, setCreateOrderVisible] = useState(false);
+  const [unifiedOrderModalVisible, setUnifiedOrderModalVisible] =
+    useState(false);
+  const [orderDetailModalVisible, setOrderDetailModalVisible] = useState(false);
 
   useEffect(() => {
     loadInitialData();
@@ -137,7 +141,20 @@ export default function HomeScreen() {
   const loadCategories = async () => {
     try {
       setCategoriesLoading(true);
-      const categoriesData = await warehouseService.getCategories();
+
+      // Thử sử dụng API theo branch trước, fallback về API cũ nếu fail
+      let categoriesData: Category[] = [];
+
+      try {
+        categoriesData = await warehouseService.getCategoriesByBranch();
+        console.log("📋 Categories by branch loaded:", categoriesData.length);
+      } catch (branchError) {
+        console.log(
+          "⚠️ Branch categories failed, falling back to general categories"
+        );
+        categoriesData = await warehouseService.getCategories();
+        console.log("📋 General categories loaded:", categoriesData.length);
+      }
 
       console.log("📋 Categories data received:", categoriesData);
 
@@ -169,7 +186,23 @@ export default function HomeScreen() {
   const loadProducts = async (categoryId: string) => {
     try {
       setProductsLoading(true);
-      const productsData = await warehouseService.getProducts(categoryId);
+
+      // Thử sử dụng API theo branch trước, fallback về API cũ nếu fail
+      let productsData: Product[] = [];
+
+      try {
+        productsData = await warehouseService.getProductsByBranch(
+          undefined,
+          categoryId
+        );
+        console.log("📦 Products by branch loaded:", productsData.length);
+      } catch (branchError) {
+        console.log(
+          "⚠️ Branch products failed, falling back to general products"
+        );
+        productsData = await warehouseService.getProducts(categoryId);
+        console.log("📦 General products loaded:", productsData.length);
+      }
 
       console.log("📦 Products data received:", productsData);
 
@@ -212,7 +245,18 @@ export default function HomeScreen() {
       // Load products for each category
       const loadPromises = categories.map(async (category) => {
         try {
-          const productsData = await warehouseService.getProducts(category.id);
+          // Thử sử dụng API theo branch trước
+          let productsData: Product[] = [];
+
+          try {
+            productsData = await warehouseService.getProductsByBranch(
+              undefined,
+              category.id
+            );
+          } catch (branchError) {
+            productsData = await warehouseService.getProducts(category.id);
+          }
+
           if (Array.isArray(productsData)) {
             let filteredProducts = productsData.filter(
               (product) => product && product.isPublished
@@ -286,38 +330,84 @@ export default function HomeScreen() {
   };
 
   const handleTablePress = (table: Table) => {
-    console.log("🪑 Table pressed:", table.name);
+    console.log("🍽️ Table pressed:", table.name);
+
     setSelectedTable(table);
-    setTableDetailVisible(true);
+    setSelectedTableForOrder(table);
+
+    if (table.status === 0) {
+      // Bàn trống - chuyển thẳng sang tab Menu không hiển thị modal
+      setActiveTab(TabType.MENU);
+    } else {
+      // Bàn có khách - mở modal UnifiedOrderModal thay vì TableDetailModal
+      setUnifiedOrderModalVisible(true);
+    }
   };
 
   const handleAreaPress = (area: Area) => {
     console.log("🏢 Area pressed:", area.name);
-    // TODO: Handle area press (filter tables, show area details, etc.)
   };
 
-  const handleCreateOrder = (table: Table) => {
-    console.log("➕ Create order for table:", table.name);
-    setTableDetailVisible(false);
-    // TODO: Navigate to order creation screen or open order modal
-    Alert.alert("Tạo đơn hàng", `Tạo đơn hàng mới cho ${table.name}`, [
-      { text: "OK" },
-    ]);
+  const handleCreateOrder = (table?: Table) => {
+    console.log(
+      "➕ Create order for table:",
+      table?.name || selectedTableForOrder?.name
+    );
+
+    const targetTable = table || selectedTableForOrder;
+    if (!targetTable) {
+      Alert.alert("Lỗi", "Chưa chọn bàn");
+      return;
+    }
+
+    // Kiểm tra xem có món nào trong giỏ hàng không
+    if (orderItems.length === 0) {
+      Alert.alert("Chưa có món", "Vui lòng chọn món trước khi tạo đơn hàng.", [
+        { text: "OK" },
+      ]);
+      return;
+    }
+
+    // Đóng UnifiedOrderModal nếu đang mở
+    setUnifiedOrderModalVisible(false);
+
+    // Mở màn hình tạo đơn hàng
+    setCreateOrderVisible(true);
+  };
+
+  const handleOrderCreated = (orderId: string) => {
+    console.log("✅ Order created with ID:", orderId);
+
+    // Reload areas để cập nhật trạng thái bàn
+    if (activeTab === TabType.TABLES) {
+      loadAreas();
+    }
+
+    // Clear selected table và order items
+    setSelectedTableForOrder(null);
+    setSelectedTable(null);
+    setOrderItems([]);
+    setUnifiedOrderModalVisible(false);
+  };
+
+  const handleClearOrder = () => {
+    setOrderItems([]);
+    setSelectedTableForOrder(null);
+    setSelectedTable(null);
+    console.log("🗑️ Order items cleared");
   };
 
   const handleViewOrder = (table: Table) => {
     console.log("👁️ View order for table:", table.name);
-    setTableDetailVisible(false);
-    // TODO: Navigate to order details screen
-    Alert.alert("Xem đơn hàng", `Xem chi tiết đơn hàng ${table.order?.code}`, [
-      { text: "OK" },
-    ]);
+
+    // Mở UnifiedOrderModal thay vì hiển thị thông báo Alert
+    setUnifiedOrderModalVisible(true);
   };
 
   const handleOrderPress = (order: OrderListItem) => {
     console.log("📋 Order pressed:", order.code);
     setSelectedOrder(order);
-    setOrderDetailViewVisible(true);
+    setOrderDetailModalVisible(true);
   };
 
   const handleMenuPress = () => {
@@ -387,17 +477,13 @@ export default function HomeScreen() {
             title: product.title,
             price: currentPrice,
             quantity: 1,
+            product: product,
           },
         ];
       }
     });
 
     console.log("🛒 Added to order:", product.title);
-  };
-
-  const handleOrderBottomSheetPress = () => {
-    console.log("📋 Order bottom sheet pressed");
-    setOrderDetailsVisible(true);
   };
 
   const handleUpdateQuantity = (itemId: string, newQuantity: number) => {
@@ -414,12 +500,7 @@ export default function HomeScreen() {
 
   const handleRemoveItem = (itemId: string) => {
     setOrderItems((prevItems) => {
-      const newItems = prevItems.filter((item) => item.id !== itemId);
-      // Tự động đóng Bottom Sheet nếu không còn sản phẩm nào
-      if (newItems.length === 0) {
-        setOrderDetailsVisible(false);
-      }
-      return newItems;
+      return prevItems.filter((item) => item.id !== itemId);
     });
   };
 
@@ -427,6 +508,104 @@ export default function HomeScreen() {
     (sum, item) => sum + item.price * item.quantity,
     0
   );
+
+  const handleBottomSheetPress = () => {
+    console.log("📋 Bottom sheet pressed - opening unified modal");
+    setUnifiedOrderModalVisible(true);
+  };
+
+  const handleTabChange = (tab: TabType) => {
+    // Keep selected table and order items persistent across tabs
+    setActiveTab(tab);
+  };
+
+  // Kiểm tra xem bàn đã có đơn và đơn đã thanh toán chưa
+  const isTableOrderPaid = React.useMemo(() => {
+    if (selectedTable?.order) {
+      // Kiểm tra trạng thái thanh toán dựa vào trạng thái đơn hàng
+      // Giả định rằng đơn đã thanh toán nếu có đơn trên bàn
+      // Thực tế cần kiểm tra kỹ hơn dựa vào trạng thái đơn
+      return true; // Tạm thời coi là đã thanh toán
+    }
+    return false;
+  }, [selectedTable]);
+
+  // Tạo danh sách sản phẩm từ đơn hàng của bàn (nếu có)
+  const tableOrderItems = React.useMemo(() => {
+    if (selectedTable?.order?.products) {
+      return selectedTable.order.products.map((product) => ({
+        id: product.id,
+        title: product.name, // Sử dụng thuộc tính name thay vì productName
+        price: product.price,
+        quantity: product.quantity,
+        product: {
+          id: product.id,
+          title: product.name, // Sử dụng thuộc tính name thay vì productName
+          price: product.price,
+          priceAfterDiscount: product.price,
+          isPublished: true,
+          isActive: true,
+        } as Product,
+      }));
+    }
+    return [] as OrderItem[];
+  }, [selectedTable]);
+
+  // Tạo danh sách mặt hàng từ đơn được chọn từ tab Orders
+  const orderDetailItems = React.useMemo(() => {
+    if (selectedOrder) {
+      // Không cần chuyển đổi dữ liệu ở đây, UnifiedOrderModal sẽ tự tải chi tiết đơn hàng
+      return [] as OrderItem[];
+    }
+    return [] as OrderItem[];
+  }, [selectedOrder]);
+
+  // Xác định đơn hàng nào sẽ hiển thị trong UnifiedOrderModal
+  const modalOrderItems = React.useMemo(() => {
+    if (selectedTable?.status === 1) {
+      return tableOrderItems; // Hiển thị đơn hàng của bàn
+    } else if (selectedOrder) {
+      return orderDetailItems; // Hiển thị đơn hàng được chọn từ tab Orders
+    } else {
+      return orderItems; // Hiển thị đơn hàng đang tạo mới
+    }
+  }, [
+    selectedTable,
+    selectedOrder,
+    tableOrderItems,
+    orderDetailItems,
+    orderItems,
+  ]);
+
+  // Xác định trạng thái thanh toán cho modal
+  const modalIsPaid = React.useMemo(() => {
+    if (selectedTable?.status === 1) {
+      return isTableOrderPaid;
+    } else if (selectedOrder) {
+      // Kiểm tra trạng thái thanh toán của đơn hàng được chọn
+      return false; // Sẽ được xác định trong UnifiedOrderModal
+    }
+    return false;
+  }, [selectedTable, selectedOrder, isTableOrderPaid]);
+
+  // Xác định tiêu đề cho modal
+  const modalTitle = React.useMemo(() => {
+    if (selectedTable?.status === 1) {
+      return `Chi tiết đơn - ${selectedTable.name}`;
+    } else if (selectedOrder) {
+      return `Chi tiết đơn #${selectedOrder.code}`;
+    }
+    return undefined;
+  }, [selectedTable, selectedOrder]);
+
+  const handleCloseUnifiedModal = () => {
+    setUnifiedOrderModalVisible(false);
+  };
+
+  const handleCloseOrderDetailModal = () => {
+    setOrderDetailModalVisible(false);
+    setSelectedOrder(undefined);
+  };
 
   // Render các tab
   const renderTabContent = () => {
@@ -439,6 +618,7 @@ export default function HomeScreen() {
             onRefresh={onRefreshAreas}
             onTablePress={handleTablePress}
             onAreaPress={handleAreaPress}
+            selectedTable={selectedTable || selectedTableForOrder}
           />
         );
       case TabType.MENU:
@@ -518,7 +698,7 @@ export default function HomeScreen() {
               styles.tabButton,
               activeTab === TabType.TABLES && styles.activeTabButton,
             ]}
-            onPress={() => setActiveTab(TabType.TABLES)}
+            onPress={() => handleTabChange(TabType.TABLES)}
           >
             <Ionicons
               name="grid-outline"
@@ -541,7 +721,7 @@ export default function HomeScreen() {
               styles.tabButton,
               activeTab === TabType.MENU && styles.activeTabButton,
             ]}
-            onPress={() => setActiveTab(TabType.MENU)}
+            onPress={() => handleTabChange(TabType.MENU)}
           >
             <Ionicons
               name="restaurant-outline"
@@ -564,7 +744,7 @@ export default function HomeScreen() {
               styles.tabButton,
               activeTab === TabType.ORDERS && styles.activeTabButton,
             ]}
-            onPress={() => setActiveTab(TabType.ORDERS)}
+            onPress={() => handleTabChange(TabType.ORDERS)}
           >
             <Ionicons
               name="receipt-outline"
@@ -595,36 +775,44 @@ export default function HomeScreen() {
 
         {/* Order Bottom Sheet */}
         <OrderBottomSheet
-          visible={orderItems.length > 0}
+          visible={orderItems.length > 0 || selectedTable !== null}
           orderItems={orderItems}
+          selectedTable={selectedTable || selectedTableForOrder}
           totalAmount={totalAmount}
-          onPress={handleOrderBottomSheetPress}
+          onPress={handleBottomSheetPress}
+          isExistingOrder={selectedTable?.status === 1} // Bàn có khách
         />
 
-        {/* Order Details Modal */}
-        <OrderDetailsModal
-          visible={orderDetailsVisible}
-          onClose={() => setOrderDetailsVisible(false)}
-          orderItems={orderItems}
+        {/* Order Detail Modal for tab Orders */}
+        <OrderDetailModal
+          visible={orderDetailModalVisible}
+          selectedOrder={selectedOrder}
+          onClose={handleCloseOrderDetailModal}
+          onRefresh={onRefresh}
+        />
+
+        {/* Unified Order Modal for Table and Order Creation */}
+        <UnifiedOrderModal
+          visible={unifiedOrderModalVisible}
+          orderItems={modalOrderItems}
+          selectedTable={selectedTable || selectedTableForOrder}
+          onClose={handleCloseUnifiedModal}
           onUpdateQuantity={handleUpdateQuantity}
           onRemoveItem={handleRemoveItem}
-        />
-
-        {/* Table Detail Modal */}
-        <TableDetailModal
-          visible={tableDetailVisible}
-          table={selectedTable}
-          onClose={() => setTableDetailVisible(false)}
           onCreateOrder={handleCreateOrder}
-          onViewOrder={handleViewOrder}
+          isExistingOrder={selectedTable?.status === 1}
+          isPaid={modalIsPaid}
+          title={modalTitle}
         />
 
-        {/* Order Detail View Modal */}
-        <OrderDetailViewModal
-          visible={orderDetailViewVisible}
-          order={selectedOrder}
-          onClose={() => setOrderDetailViewVisible(false)}
-          onRefresh={onRefresh}
+        {/* Create Order Modal */}
+        <CreateOrderModal
+          visible={createOrderVisible}
+          table={selectedTableForOrder}
+          orderItems={orderItems}
+          onClose={() => setCreateOrderVisible(false)}
+          onOrderCreated={handleOrderCreated}
+          onClearOrder={handleClearOrder}
         />
       </View>
     </SafeAreaView>
@@ -667,7 +855,7 @@ const styles = StyleSheet.create({
   // Styles cho tab bar
   tabBar: {
     flexDirection: "row",
-    backgroundColor: "#ffffff",
+    backgroundColor: "#fff",
     borderBottomWidth: 1,
     borderBottomColor: "#e0e0e0",
     elevation: 2,
@@ -679,7 +867,7 @@ const styles = StyleSheet.create({
   },
   tabButton: {
     flex: 1,
-    paddingVertical: 12,
+    paddingVertical: 15,
     alignItems: "center",
     justifyContent: "center",
     flexDirection: "row",
