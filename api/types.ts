@@ -353,6 +353,26 @@ export interface CreateOrderRequest {
   discountVAT?: number; // Mức VAT được áp dụng giảm giá (0, 5, 8, 10)
   // Thông tin voucher
   voucher?: VoucherRequest;
+  // Thêm các trường bắt buộc theo schema mới
+  orderCustomerName?: string;
+  orderCustomerPhone?: string;
+  isDelivery?: boolean;
+  debt?: {
+    debit: number;
+    debitExpire: string;
+  };
+  delivery?: {
+    deliveryId: number;
+    deliveryName: string;
+    deliveryCode: string;
+    deliveryFee: number;
+    cod: boolean;
+    deliveryNote?: string;
+  };
+  flashSales?: {
+    productId: string;
+    campaignId: string;
+  }[];
 }
 
 // Order Product Request
@@ -363,6 +383,10 @@ export interface OrderProductRequest {
   priceIncludeVAT?: number;
   note?: string;
   vat?: number; // Mức thuế VAT
+  // Thêm các trường bắt buộc theo schema
+  name?: string;
+  productCode?: string;
+  unitName?: string;
 }
 
 // Order Update Request

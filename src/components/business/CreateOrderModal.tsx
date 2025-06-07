@@ -100,12 +100,16 @@ const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
         priceIncludeVAT: item.product.priceAfterDiscount || item.product.price, // Giá sau thuế/giảm giá
         note: "", // Có thể thêm ghi chú cho từng món
         vat: 10, // Mặc định 10% VAT, có thể lấy từ category
+        // Thêm các trường bắt buộc theo schema
+        name: item.product.title,
+        productCode: item.product.id.substring(0, 6), // Tạo mã tạm nếu không có
+        unitName: item.product.unitName || "Cái",
       }));
 
       // Tạo request
       const orderData: CreateOrderRequest = {
         customerName: customerName.trim(),
-        customerPhone: customerPhone.trim() || undefined,
+        customerPhone: customerPhone.trim() || "0000000000", // Đảm bảo luôn có SĐT
         tableId: table.id,
         products,
         note: note.trim() || undefined,
@@ -114,6 +118,22 @@ const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
         discountType: 0, // Không giảm giá
         discount: 0,
         discountVAT: 0,
+        // Thêm các trường bắt buộc theo schema
+        orderCustomerName: customerName.trim(), // Dùng customerName làm người nhận
+        orderCustomerPhone: customerPhone.trim() || "0000000000", // Dùng customerPhone làm SĐT người nhận
+        isDelivery: false, // Không giao hàng
+        debt: {
+          debit: 0,
+          debitExpire: new Date().toISOString(),
+        },
+        delivery: {
+          deliveryId: 0,
+          deliveryName: "",
+          deliveryCode: "",
+          deliveryFee: 0,
+          cod: false,
+        },
+        flashSales: [],
       };
 
       console.log("🍽️ Creating order with data:", orderData);

@@ -108,7 +108,7 @@ export default function DrawerMenu({
               <View style={styles.logoContainer}>
                 <Image
                   style={styles.logo}
-                  source={require("../../../assets/images/LOGO_POS_2.png")}
+                  source={require("../../../assets/images/POS-ONE-LOGO.png")}
                 />
               </View>
 
@@ -218,10 +218,17 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   header: {
-    backgroundColor: "#198754",
+    backgroundColor: "#fff",
     paddingBottom: 20,
     paddingHorizontal: 20,
     alignItems: "center",
+    borderBottomWidth: 1,
+    borderBottomColor: "#e9ecef",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.2,
+    shadowRadius: 1,
+    elevation: 4,
   },
   // logoContainer: {
   //   flexDirection: "row",
@@ -242,7 +249,7 @@ const styles = StyleSheet.create({
   },
   subtitle: {
     fontSize: 16,
-    color: "#fff",
+    color: "#666",
     textAlign: "center",
     fontWeight: "600",
   },
