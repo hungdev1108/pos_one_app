@@ -307,7 +307,7 @@ const styles = StyleSheet.create({
   footerText: {
     fontSize: 14,
     fontWeight: "600",
-    color: "#007bff",
+    color: "#5470ff",
     marginBottom: 4,
   },
   versionText: {

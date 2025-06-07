@@ -217,6 +217,7 @@ const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
               value={customerName}
               onChangeText={setCustomerName}
               autoCapitalize="words"
+              placeholderTextColor="#666"
             />
             <TextInput
               style={styles.input}
@@ -224,6 +225,7 @@ const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
               value={customerPhone}
               onChangeText={setCustomerPhone}
               keyboardType="phone-pad"
+              placeholderTextColor="#666"
             />
             <TextInput
               style={[styles.input, styles.textArea]}
@@ -232,6 +234,7 @@ const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
               onChangeText={setNote}
               multiline
               numberOfLines={3}
+              placeholderTextColor="#666"
             />
           </View>
 

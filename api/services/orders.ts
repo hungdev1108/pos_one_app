@@ -370,16 +370,26 @@ class OrdersService {
    * Xác nhận đơn hàng
    */
   async confirmOrder(orderId: string): Promise<OrderOperationResponse> {
+    console.log("🔄 Confirm order:", orderId);
     try {
-      const response = await apiClient.put<OrderOperationResponse>(
-        `${this.baseUrl}/${orderId}/confirm`
+      const response = await apiClient.post<OrderOperationResponse>(
+        `${this.baseUrl}/${orderId}/confirm`,
+        {},
+        {
+          headers: {
+            'x-http-method-override': 'PUT',
+          },
+        }
       );
 
-      if (response.data?.successful) {
-        return response.data;
+      console.log("✅ Confirm order response:", response);
+      
+      // apiClient đã xử lý đặc biệt nếu response là rỗng
+      if (response.successful) {
+        return response;
       }
 
-      throw new Error(response.data?.error || "Lỗi khi xác nhận đơn hàng");
+      throw new Error(response.error || "Lỗi khi xác nhận đơn hàng");
     } catch (error: any) {
       console.error("❌ Error confirming order:", error);
       throw error;

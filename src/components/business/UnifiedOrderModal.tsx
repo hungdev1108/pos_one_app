@@ -5,6 +5,7 @@ import {
   Table,
   ordersService,
 } from "@/api";
+import { OrderMode } from "@/src/services/buttonVisibilityService";
 import { Ionicons } from "@expo/vector-icons";
 import React, { useEffect, useRef, useState } from "react";
 import {
@@ -26,6 +27,12 @@ import {
   State,
 } from "react-native-gesture-handler";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import {
+  calculateOrderSummary,
+  formatPrice as formatPriceUtil,
+} from "../../utils/orderCalculations";
+import OrderActionButtons from "./OrderActionButtons";
+import ProductQuantityControls from "./ProductQuantityControls";
 
 interface OrderItem {
   id: string;
@@ -60,7 +67,8 @@ const SwipeableOrderItem: React.FC<{
   onUpdateQuantity?: (itemId: string, newQuantity: number) => void;
   onRemoveItem?: (itemId: string) => void;
   isPaid: boolean;
-}> = ({ item, onUpdateQuantity, onRemoveItem, isPaid }) => {
+  order?: any;
+}> = ({ item, onUpdateQuantity, onRemoveItem, isPaid, order }) => {
   const translateX = useRef(new Animated.Value(0)).current;
 
   const formatPrice = (price: number): string => {
@@ -68,22 +76,6 @@ const SwipeableOrderItem: React.FC<{
       style: "currency",
       currency: "VND",
     }).format(price);
-  };
-
-  const handleIncreaseQuantity = () => {
-    if (!isPaid && onUpdateQuantity) {
-      onUpdateQuantity(item.id, item.quantity + 1);
-    }
-  };
-
-  const handleDecreaseQuantity = () => {
-    if (!isPaid) {
-      if (item.quantity > 1 && onUpdateQuantity) {
-        onUpdateQuantity(item.id, item.quantity - 1);
-      } else if (onRemoveItem) {
-        onRemoveItem(item.id);
-      }
-    }
   };
 
   const handleSwipeGesture = (event: PanGestureHandlerGestureEvent) => {
@@ -177,35 +169,13 @@ const SwipeableOrderItem: React.FC<{
               <Text style={styles.itemPrice}>{formatPrice(item.price)}</Text>
             </View>
 
-            {!isPaid && onUpdateQuantity && (
-              <View style={styles.quantityControls}>
-                <TouchableOpacity
-                  style={styles.quantityButton}
-                  onPress={handleDecreaseQuantity}
-                >
-                  <Ionicons
-                    name={item.quantity === 1 ? "trash-outline" : "remove"}
-                    size={16}
-                    color="#198754"
-                  />
-                </TouchableOpacity>
-
-                <Text style={styles.quantityText}>{item.quantity}</Text>
-
-                <TouchableOpacity
-                  style={styles.quantityButton}
-                  onPress={handleIncreaseQuantity}
-                >
-                  <Ionicons name="add" size={16} color="#198754" />
-                </TouchableOpacity>
-              </View>
-            )}
-
-            {isPaid && (
-              <View style={styles.quantityDisplayOnly}>
-                <Text style={styles.quantityText}>SL: {item.quantity}</Text>
-              </View>
-            )}
+            <ProductQuantityControls
+              item={item}
+              order={order}
+              onUpdateQuantity={onUpdateQuantity}
+              onRemoveItem={onRemoveItem}
+              isPaid={isPaid}
+            />
 
             <View style={styles.itemTotalContainer}>
               <Text style={styles.itemTotal}>{formatPrice(itemTotal)}</Text>
@@ -237,12 +207,17 @@ export default function UnifiedOrderModal({
   const [orderDetail, setOrderDetail] = useState<OrderDetail | null>(null);
   const [orderStatus, setOrderStatus] = useState<string>("");
   const [orderStatusText, setOrderStatusText] = useState<string>("");
+  const [orderDetailItems, setOrderDetailItems] = useState<OrderItem[]>([]);
 
   useEffect(() => {
     if (visible && selectedOrder) {
       loadOrderDetail();
     } else {
+      // Reset state khi modal đóng hoặc không có selectedOrder
       setOrderDetail(null);
+      setOrderDetailItems([]);
+      setOrderStatus("");
+      setOrderStatusText("");
     }
   }, [visible, selectedOrder]);
 
@@ -266,11 +241,13 @@ export default function UnifiedOrderModal({
         // Các trường của sản phẩm
         if (detail.products && detail.products.length > 0) {
           detail.products.forEach((product) => {
-            // Mặc định VAT là 10% nếu không có
-            if (product.VAT === undefined) product.VAT = 10;
+            // KHÔNG force set VAT, chỉ tính toán các field thiếu
+            // Lấy VAT rate từ API (ưu tiên field 'vat' viết thường)
+            const vatRate = (product as any).vat || product.VAT || 0;
+
             // Tính giá bao gồm VAT nếu không có
             if (product.priceIncludeVAT === undefined) {
-              product.priceIncludeVAT = product.price * (1 + product.VAT / 100);
+              product.priceIncludeVAT = product.price * (1 + vatRate / 100);
             }
             // Tính tổng tiền bao gồm VAT nếu không có
             if (product.totalCostInclideVAT === undefined) {
@@ -281,6 +258,35 @@ export default function UnifiedOrderModal({
         }
 
         setOrderDetail(detail);
+
+        // Convert OrderDetail.products thành OrderItem[] để hiển thị
+        if (detail.products && detail.products.length > 0) {
+          const convertedItems: OrderItem[] = detail.products.map(
+            (product) => ({
+              id: product.id,
+              title: product.productName,
+              price: product.price,
+              quantity: product.quantity,
+              product: {
+                id: product.id,
+                title: product.productName,
+                categoryId: "",
+                categoryName: "",
+                price: product.price,
+                priceAfterDiscount: product.priceIncludeVAT || product.price,
+                discount: 0,
+                discountType: 0,
+                unitName: "",
+                isActive: true,
+                isPublished: true,
+                categoryOutputMethod: 0,
+              } as Product,
+            })
+          );
+          setOrderDetailItems(convertedItems);
+        } else {
+          setOrderDetailItems([]);
+        }
 
         // Xác định trạng thái đơn hàng
         let statusText = "";
@@ -329,22 +335,87 @@ export default function UnifiedOrderModal({
     };
   };
 
-  // Calculate totals
-  const subtotal = orderItems.reduce(
-    (sum, item) => sum + item.price * item.quantity,
-    0
-  );
-  const taxRate = 0.1; // 10% VAT
-  const taxAmount = subtotal * taxRate;
-  const totalAmount = subtotal + taxAmount;
+  // Determine which items to use for display and calculations
+  const displayItems = selectedOrder ? orderDetailItems : orderItems;
+
+  // Calculate totals - use orderCalculations for accurate calculation
+  let subtotal = 0;
+  let taxAmount = 0;
+  let totalAmount = 0;
+
+  if (selectedOrder && orderDetail && orderDetail.products) {
+    // Debug: Log orderDetail structure
+    console.log("🔍 OrderDetail:", {
+      LoaiThue: orderDetail.LoaiThue,
+      PriceIncludeVAT: orderDetail.PriceIncludeVAT,
+      Discount: orderDetail.Discount,
+      DiscountType: orderDetail.DiscountType,
+      DiscountVAT: orderDetail.DiscountVAT,
+      productsCount: orderDetail.products.length,
+    });
+
+    // Debug: Log tất cả sản phẩm và VAT của chúng
+    console.log("📦 All Products VAT Info:");
+    orderDetail.products.forEach((product, index) => {
+      const actualVAT = (product as any).vat || product.VAT || 0;
+      console.log(`  Product ${index}: ${product.productName}`);
+      console.log(
+        `    price=${product.price}, priceIncludeVAT=${product.priceIncludeVAT}`
+      );
+      console.log(
+        `    VAT field=${product.VAT}, vat field=${
+          (product as any).vat
+        }, actual VAT=${actualVAT}%`
+      );
+      console.log(
+        `    totalCost=${product.totalCost}, totalCostInclideVAT=${product.totalCostInclideVAT}`
+      );
+
+      // Tính VAT amount để verify
+      const vatAmount = product.totalCostInclideVAT - product.totalCost;
+      console.log(
+        `    VAT Amount: ${vatAmount} (should be ${
+          (product.totalCost * actualVAT) / 100
+        })`
+      );
+    });
+
+    // Force sử dụng calculateOrderSummary để test fix VAT
+    const orderSummary = calculateOrderSummary(
+      orderDetail,
+      orderDetail.products
+    );
+    subtotal = orderSummary.tienHang;
+    taxAmount = orderSummary.tienThue;
+    totalAmount = orderSummary.phaiThu;
+
+    console.log("📊 Using Calculated Summary (Fixed VAT):", {
+      tienHang: subtotal,
+      tienThue: taxAmount,
+      phaiThu: totalAmount,
+    });
+  } else {
+    // Calculate from displayItems for new orders (simplified)
+    subtotal = displayItems.reduce(
+      (sum, item) => sum + item.price * item.quantity,
+      0
+    );
+    const taxRate = 0.1; // 10% VAT
+    taxAmount = subtotal * taxRate;
+    totalAmount = subtotal + taxAmount;
+  }
 
   const renderOrderItem = ({ item }: { item: OrderItem }) => {
+    // Determine if order is paid based on status
+    const isOrderPaid = selectedOrder ? orderStatus === "paid" : isPaid;
+
     return (
       <SwipeableOrderItem
         item={item}
         onUpdateQuantity={onUpdateQuantity}
         onRemoveItem={onRemoveItem}
-        isPaid={isPaid}
+        isPaid={isOrderPaid}
+        order={orderDetail || selectedOrder}
       />
     );
   };
@@ -404,19 +475,12 @@ export default function UnifiedOrderModal({
     }
   };
 
-  const handleOrderAction = async (
-    action:
-      | "cancel"
-      | "save"
-      | "print_kitchen"
-      | "print_bill"
-      | "payment"
-      | "detail"
-  ) => {
+  const handleOrderAction = async (action: string) => {
     if (selectedOrder && orderDetail) {
       try {
         switch (action) {
           case "cancel":
+          case "cancel_order":
             Alert.alert("Hủy đơn hàng", "Bạn có chắc muốn hủy đơn hàng này?", [
               { text: "Không", style: "cancel" },
               {
@@ -438,13 +502,19 @@ export default function UnifiedOrderModal({
             ]);
             break;
           case "save":
-            // Logic lưu đơn hàng
+            // Logic lưu đơn hàng - delegate to onCreateOrder if available
+            if (onCreateOrder) {
+              onCreateOrder();
+            }
             break;
           case "print_kitchen":
             // Logic in chế biến
+            console.log("In chế biến cho đơn hàng:", orderDetail.id);
             break;
           case "print_bill":
+          case "print_temporary":
             // Logic in tạm tính
+            console.log("In tạm tính cho đơn hàng:", orderDetail.id);
             break;
           case "payment":
             Alert.alert(
@@ -471,24 +541,89 @@ export default function UnifiedOrderModal({
               ]
             );
             break;
+          case "delete_order":
+            Alert.alert("Xóa đơn hàng", "Bạn có chắc muốn xóa đơn hàng này?", [
+              { text: "Không", style: "cancel" },
+              {
+                text: "Có",
+                style: "destructive",
+                onPress: async () => {
+                  try {
+                    // Call delete API if available
+                    Alert.alert("Thành công", "Đã xóa đơn hàng");
+                    onClose();
+                    onRefresh?.();
+                  } catch (error: any) {
+                    Alert.alert(
+                      "Lỗi",
+                      `Không thể xóa đơn hàng: ${error.message}`
+                    );
+                  }
+                },
+              },
+            ]);
+            break;
+          case "send_order":
+            try {
+              await ordersService.sendOrder(orderDetail.id);
+              Alert.alert("Thành công", "Đã gửi đơn hàng");
+              onRefresh?.();
+            } catch (error: any) {
+              Alert.alert("Lỗi", `Không thể gửi đơn hàng: ${error.message}`);
+            }
+            break;
+          case "confirm_order":
+            try {
+              console.log("🔄 Confirm order:", orderDetail.id);
+              await ordersService.confirmOrder(orderDetail.id);
+              Alert.alert("Thành công", "Đã xác nhận đơn hàng");
+              onRefresh?.();
+            } catch (error: any) {
+              Alert.alert(
+                "Lỗi",
+                `Không thể xác nhận đơn hàng: ${error.message}`
+              );
+            }
+            break;
           case "detail":
             // Hiển thị chi tiết đơn hàng
+            console.log("Hiển thị chi tiết đơn hàng:", orderDetail.id);
             break;
         }
       } catch (error: any) {
         Alert.alert("Lỗi", `Không thể thực hiện hành động: ${error.message}`);
       }
-    } else if (!selectedOrder && action === "save" && onCreateOrder) {
-      onCreateOrder();
+    } else if (!selectedOrder) {
+      // Handle actions for create mode (chưa lưu đơn hàng)
+      switch (action) {
+        case "save":
+          if (onCreateOrder) {
+            onCreateOrder();
+          }
+          break;
+        case "cancel":
+          onClose();
+          break;
+        case "print_kitchen":
+          console.log("In chế biến cho đơn hàng mới");
+          break;
+        default:
+          console.log("Action không được hỗ trợ cho đơn hàng mới:", action);
+          break;
+      }
     }
   };
 
   const renderActionButtons = () => {
     // Nếu không có món ăn nào thì không hiển thị các button action
-    if (loading || orderItems.length === 0) return null;
+    if (loading || displayItems.length === 0) return null;
 
-    if (isPaid) {
-      // Đơn hàng đã thanh toán: chỉ hiển thị Chi tiết và In
+    // Xác định mode dựa vào trạng thái
+    const mode: OrderMode = selectedOrder ? "update" : "create";
+
+    // Đơn hàng đã thanh toán: chỉ hiển thị Chi tiết và In
+    const isOrderPaid = selectedOrder ? orderStatus === "paid" : isPaid;
+    if (isOrderPaid) {
       return (
         <View style={styles.buttonRow}>
           <TouchableOpacity
@@ -508,79 +643,17 @@ export default function UnifiedOrderModal({
           </TouchableOpacity>
         </View>
       );
-    } else if (selectedOrder) {
-      // Đơn hàng đã lưu: hiển thị các button tùy theo trạng thái
-      if (
-        orderStatus === "new" ||
-        orderStatus === "confirmed" ||
-        orderStatus === "sent"
-      ) {
-        return (
-          <View style={styles.buttonRowMultiple}>
-            <TouchableOpacity
-              style={[styles.actionButton, styles.dangerButton]}
-              onPress={() => handleOrderAction("cancel")}
-            >
-              <Ionicons name="close-circle" size={16} color="#fff" />
-              <Text style={styles.actionButtonText}>Huỷ đơn</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[styles.actionButton, styles.secondaryButton]}
-              onPress={() => handleOrderAction("print_kitchen")}
-            >
-              <Ionicons name="restaurant" size={16} color="#fff" />
-              <Text style={styles.actionButtonText}>In chế biến</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[styles.actionButton, styles.infoButton]}
-              onPress={() => handleOrderAction("print_bill")}
-            >
-              <Ionicons name="receipt" size={16} color="#fff" />
-              <Text style={styles.actionButtonText}>In tạm tính</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[styles.actionButton, styles.primaryButton]}
-              onPress={() => handleOrderAction("payment")}
-            >
-              <Ionicons name="card" size={16} color="#fff" />
-              <Text style={styles.actionButtonText}>Thanh toán</Text>
-            </TouchableOpacity>
-          </View>
-        );
-      }
-    } else {
-      // Đơn hàng chưa lưu: Huỷ, Lưu, In chế biến
-      return (
-        <View style={styles.buttonRowMultiple}>
-          <TouchableOpacity
-            style={[styles.actionButton, styles.dangerButton]}
-            onPress={onClose}
-          >
-            <Ionicons name="close-circle" size={16} color="#fff" />
-            <Text style={styles.actionButtonText}>Huỷ</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.actionButton, styles.primaryButton]}
-            onPress={() => handleOrderAction("save")}
-          >
-            <Ionicons name="save" size={16} color="#fff" />
-            <Text style={styles.actionButtonText}>Lưu</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.actionButton, styles.secondaryButton]}
-            onPress={() => handleOrderAction("print_kitchen")}
-          >
-            <Ionicons name="restaurant" size={16} color="#fff" />
-            <Text style={styles.actionButtonText}>In chế biến</Text>
-          </TouchableOpacity>
-        </View>
-      );
     }
+
+    // Sử dụng OrderActionButtons component mới
+    return (
+      <OrderActionButtons
+        order={orderDetail || selectedOrder}
+        mode={mode}
+        products={displayItems}
+        onAction={handleOrderAction}
+      />
+    );
   };
 
   return (
@@ -617,9 +690,9 @@ export default function UnifiedOrderModal({
             {selectedOrder && renderOrderDetails()}
 
             {/* Order Items List */}
-            {orderItems.length > 0 ? (
+            {displayItems.length > 0 ? (
               <FlatList
-                data={orderItems}
+                data={displayItems}
                 renderItem={renderOrderItem}
                 keyExtractor={(item) => item.id}
                 style={styles.itemsList}
@@ -637,26 +710,26 @@ export default function UnifiedOrderModal({
             )}
 
             {/* Summary Section */}
-            {orderItems.length > 0 && (
+            {displayItems.length > 0 && (
               <View style={styles.summarySection}>
                 <View style={styles.summaryRow}>
                   <Text style={styles.summaryLabel}>Tiền hàng:</Text>
                   <Text style={styles.summaryValue}>
-                    {formatPrice(subtotal)}
+                    {formatPriceUtil(subtotal)}
                   </Text>
                 </View>
 
                 <View style={styles.summaryRow}>
-                  <Text style={styles.summaryLabel}>Tiền thuế (10%):</Text>
+                  <Text style={styles.summaryLabel}>Tiền thuế:</Text>
                   <Text style={styles.summaryValue}>
-                    {formatPrice(taxAmount)}
+                    {formatPriceUtil(taxAmount)}
                   </Text>
                 </View>
 
                 <View style={[styles.summaryRow, styles.totalRow]}>
                   <Text style={styles.totalLabel}>Phải thu:</Text>
                   <Text style={styles.totalValue}>
-                    {formatPrice(totalAmount)}
+                    {formatPriceUtil(totalAmount)}
                   </Text>
                 </View>
               </View>

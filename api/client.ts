@@ -64,6 +64,19 @@ class ApiClient {
           await this.handleTokenExpired();
         }
 
+        // Không reject promise nếu là lỗi do response status 200 với body rỗng
+        if (error.message === "Lỗi khi xác nhận đơn hàng" && 
+            error.config?.url?.includes('/confirm') && 
+            error.response?.status === 200) {
+          console.log('🔍 Detected success response with empty body for confirmation');
+          return {
+            data: {
+              successful: true,
+              status: 200
+            }
+          };
+        }
+
         return Promise.reject(this.formatError(error));
       }
     );
@@ -114,11 +127,27 @@ class ApiClient {
   // POST request
   async post<T>(url: string, data?: any, config?: AxiosRequestConfig): Promise<T> {
     const response = await this.instance.post<T>(url, data, config);
+    
+    // Xử lý đặc biệt cho các endpoint /confirm trả về 200 với body rỗng
+    if (url.includes('/confirm') && response.status === 200 && 
+        (response.data === '' || response.data === undefined)) {
+      console.log('🔄 Special handling for confirm endpoint with empty response');
+      return {
+        successful: true,
+        status: 200
+      } as unknown as T;
+    }
+    
     return response.data;
   }
 
   // PUT request
   async put<T>(url: string, data?: any, config?: AxiosRequestConfig): Promise<T> {
+    console.log("🔄 PUT request:", {
+      url,
+      data,
+      config,
+    });
     const response = await this.instance.put<T>(url, data, config);
     return response.data;
   }

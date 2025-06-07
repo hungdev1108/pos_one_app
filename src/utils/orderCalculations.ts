@@ -4,9 +4,10 @@ import { OrderDetail, OrderDetailProduct, VoucherDetail, VoucherExtended } from 
  * Hàm hỗ trợ lấy giá trị VAT của sản phẩm (xử lý cả VAT và vat)
  */
 const getProductVatRate = (product: OrderDetailProduct): number => {
-  if (typeof product.VAT === 'number') return product.VAT;
-  // Thử với trường vat (viết thường)
+  // Ưu tiên field vat (viết thường) từ API
   if (typeof (product as any).vat === 'number') return (product as any).vat;
+  // Fallback sang VAT (viết hoa)
+  if (typeof product.VAT === 'number') return product.VAT;
   return 0;
 };
 
@@ -33,27 +34,37 @@ export const calculateGetVAT = (
   
   if (vatRate <= 0) return 0;
   
+  const productsWithVAT = products.filter(product => getProductVatRate(product) === vatRate);
+  console.log(`🔍 GetVAT(${vatRate}): Found ${productsWithVAT.length} products with VAT ${vatRate}%`);
+  
+  if (productsWithVAT.length === 0) return 0;
+  
   if (PriceIncludeVAT) {
     // Nếu giá đã bao gồm VAT
     const discountIncludeVAT = (DiscountVAT === vatRate) ? Discount : 0;
     const discount = discountIncludeVAT === 0 ? 0 : discountIncludeVAT / (1 + vatRate / 100);
     const discountVAT = discountIncludeVAT - discount;
     
-    const productVAT = products
-      .filter(product => getProductVatRate(product) === vatRate)
-      .reduce((sum, product) => {
-        return sum + ((product.priceIncludeVAT - product.price) * product.quantity);
-      }, 0);
+    const productVAT = productsWithVAT.reduce((sum, product) => {
+      const vatAmount = (product.priceIncludeVAT - product.price) * product.quantity;
+      console.log(`  Product ${product.productName}: (${product.priceIncludeVAT} - ${product.price}) * ${product.quantity} = ${vatAmount}`);
+      return sum + vatAmount;
+    }, 0);
     
+    console.log(`  PriceIncludeVAT=true: productVAT=${productVAT}, discountVAT=${discountVAT}`);
     return productVAT - discountVAT;
   } else {
     // Nếu giá chưa bao gồm VAT
-    const totalCostForVAT = products
-      .filter(product => getProductVatRate(product) === vatRate)
-      .reduce((sum, product) => sum + product.totalCost, 0);
+    const totalCostForVAT = productsWithVAT.reduce((sum, product) => {
+      console.log(`  Product ${product.productName}: totalCost=${product.totalCost}, VAT=${product.VAT}%`);
+      return sum + product.totalCost;
+    }, 0);
     
     const discountForVAT = (DiscountVAT === vatRate) ? Discount : 0;
-    return (totalCostForVAT - discountForVAT) * vatRate / 100;
+    const vatAmount = (totalCostForVAT - discountForVAT) * vatRate / 100;
+    
+    console.log(`  PriceIncludeVAT=false: totalCost=${totalCostForVAT}, discount=${discountForVAT}, VAT=${vatAmount}`);
+    return vatAmount;
   }
 };
 

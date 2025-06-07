@@ -19,7 +19,6 @@ import AreasTablesView from "@/src/components/business/AreasTablesView";
 import CategoryBottomSheet from "@/src/components/business/CategoryBottomSheet";
 import CreateOrderModal from "@/src/components/business/CreateOrderModal";
 import OrderBottomSheet from "@/src/components/business/OrderBottomSheet";
-import OrderDetailModal from "@/src/components/business/OrderDetailModal";
 import OrdersView from "@/src/components/business/OrdersView";
 import UnifiedOrderModal from "@/src/components/business/UnifiedOrderModal";
 import AppBar from "@/src/components/common/AppBar";
@@ -74,10 +73,17 @@ export default function HomeScreen() {
   const [createOrderVisible, setCreateOrderVisible] = useState(false);
   const [unifiedOrderModalVisible, setUnifiedOrderModalVisible] =
     useState(false);
-  const [orderDetailModalVisible, setOrderDetailModalVisible] = useState(false);
 
   useEffect(() => {
     loadInitialData();
+
+    // Test button visibility service (chỉ chạy khi dev)
+    if (__DEV__) {
+      const {
+        testButtonVisibilityService,
+      } = require("@/src/utils/testButtonVisibility");
+      testButtonVisibilityService();
+    }
   }, []);
 
   useEffect(() => {
@@ -339,7 +345,26 @@ export default function HomeScreen() {
       // Bàn trống - chuyển thẳng sang tab Menu không hiển thị modal
       setActiveTab(TabType.MENU);
     } else {
-      // Bàn có khách - mở modal UnifiedOrderModal thay vì TableDetailModal
+      // Bàn có khách - tạo OrderListItem từ order của bàn để truyền vào UnifiedOrderModal
+      if (table.order) {
+        const tableOrderListItem: OrderListItem = {
+          id: table.order.id,
+          code: table.order.code,
+          customerName: table.order.customer?.name || "Khách hàng",
+          customerPhone: table.order.customer?.phone || "",
+          customerAddress: "",
+          countProducts: table.order.products?.length || 0,
+          totalPrice:
+            table.order.products?.reduce(
+              (sum, p) => sum + (p.totalCost || 0),
+              0
+            ) || 0,
+          date: table.order.createDate,
+          exportWarehouse: false,
+        };
+        setSelectedOrder(tableOrderListItem);
+      }
+      // Mở modal UnifiedOrderModal
       setUnifiedOrderModalVisible(true);
     }
   };
@@ -407,7 +432,7 @@ export default function HomeScreen() {
   const handleOrderPress = (order: OrderListItem) => {
     console.log("📋 Order pressed:", order.code);
     setSelectedOrder(order);
-    setOrderDetailModalVisible(true);
+    setUnifiedOrderModalVisible(true);
   };
 
   const handleMenuPress = () => {
@@ -519,78 +544,28 @@ export default function HomeScreen() {
     setActiveTab(tab);
   };
 
-  // Kiểm tra xem bàn đã có đơn và đơn đã thanh toán chưa
-  const isTableOrderPaid = React.useMemo(() => {
-    if (selectedTable?.order) {
-      // Kiểm tra trạng thái thanh toán dựa vào trạng thái đơn hàng
-      // Giả định rằng đơn đã thanh toán nếu có đơn trên bàn
-      // Thực tế cần kiểm tra kỹ hơn dựa vào trạng thái đơn
-      return true; // Tạm thời coi là đã thanh toán
-    }
-    return false;
-  }, [selectedTable]);
-
-  // Tạo danh sách sản phẩm từ đơn hàng của bàn (nếu có)
-  const tableOrderItems = React.useMemo(() => {
-    if (selectedTable?.order?.products) {
-      return selectedTable.order.products.map((product) => ({
-        id: product.id,
-        title: product.name, // Sử dụng thuộc tính name thay vì productName
-        price: product.price,
-        quantity: product.quantity,
-        product: {
-          id: product.id,
-          title: product.name, // Sử dụng thuộc tính name thay vì productName
-          price: product.price,
-          priceAfterDiscount: product.price,
-          isPublished: true,
-          isActive: true,
-        } as Product,
-      }));
-    }
-    return [] as OrderItem[];
-  }, [selectedTable]);
-
-  // Tạo danh sách mặt hàng từ đơn được chọn từ tab Orders
-  const orderDetailItems = React.useMemo(() => {
-    if (selectedOrder) {
-      // Không cần chuyển đổi dữ liệu ở đây, UnifiedOrderModal sẽ tự tải chi tiết đơn hàng
-      return [] as OrderItem[];
-    }
-    return [] as OrderItem[];
-  }, [selectedOrder]);
-
   // Xác định đơn hàng nào sẽ hiển thị trong UnifiedOrderModal
   const modalOrderItems = React.useMemo(() => {
-    if (selectedTable?.status === 1) {
-      return tableOrderItems; // Hiển thị đơn hàng của bàn
-    } else if (selectedOrder) {
-      return orderDetailItems; // Hiển thị đơn hàng được chọn từ tab Orders
+    if (selectedOrder) {
+      // Nếu có selectedOrder (từ bàn hoặc từ tab Orders), UnifiedOrderModal sẽ tự load data
+      return []; // Trả về array rỗng vì UnifiedOrderModal sẽ load từ API
     } else {
       return orderItems; // Hiển thị đơn hàng đang tạo mới
     }
-  }, [
-    selectedTable,
-    selectedOrder,
-    tableOrderItems,
-    orderDetailItems,
-    orderItems,
-  ]);
+  }, [selectedOrder, orderItems]);
 
   // Xác định trạng thái thanh toán cho modal
   const modalIsPaid = React.useMemo(() => {
-    if (selectedTable?.status === 1) {
-      return isTableOrderPaid;
-    } else if (selectedOrder) {
-      // Kiểm tra trạng thái thanh toán của đơn hàng được chọn
-      return false; // Sẽ được xác định trong UnifiedOrderModal
+    if (selectedOrder) {
+      // Trạng thái thanh toán sẽ được xác định trong UnifiedOrderModal dựa vào orderDetail
+      return false; // UnifiedOrderModal sẽ tự kiểm tra receiveDate
     }
     return false;
-  }, [selectedTable, selectedOrder, isTableOrderPaid]);
+  }, [selectedOrder]);
 
   // Xác định tiêu đề cho modal
   const modalTitle = React.useMemo(() => {
-    if (selectedTable?.status === 1) {
+    if (selectedOrder && selectedTable?.status === 1) {
       return `Chi tiết đơn - ${selectedTable.name}`;
     } else if (selectedOrder) {
       return `Chi tiết đơn #${selectedOrder.code}`;
@@ -600,10 +575,7 @@ export default function HomeScreen() {
 
   const handleCloseUnifiedModal = () => {
     setUnifiedOrderModalVisible(false);
-  };
-
-  const handleCloseOrderDetailModal = () => {
-    setOrderDetailModalVisible(false);
+    // Clear selectedOrder khi đóng modal
     setSelectedOrder(undefined);
   };
 
@@ -783,23 +755,17 @@ export default function HomeScreen() {
           isExistingOrder={selectedTable?.status === 1} // Bàn có khách
         />
 
-        {/* Order Detail Modal for tab Orders */}
-        <OrderDetailModal
-          visible={orderDetailModalVisible}
-          selectedOrder={selectedOrder}
-          onClose={handleCloseOrderDetailModal}
-          onRefresh={onRefresh}
-        />
-
         {/* Unified Order Modal for Table and Order Creation */}
         <UnifiedOrderModal
           visible={unifiedOrderModalVisible}
           orderItems={modalOrderItems}
           selectedTable={selectedTable || selectedTableForOrder}
+          selectedOrder={selectedOrder}
           onClose={handleCloseUnifiedModal}
           onUpdateQuantity={handleUpdateQuantity}
           onRemoveItem={handleRemoveItem}
           onCreateOrder={handleCreateOrder}
+          onRefresh={onRefresh}
           isExistingOrder={selectedTable?.status === 1}
           isPaid={modalIsPaid}
           title={modalTitle}

@@ -332,6 +332,8 @@ export interface OrderOperationResponse {
   successful: boolean;
   error?: string;
   data?: any;
+  status?: number;
+  message?: string;
 }
 
 // ===== ORDER CREATION & UPDATE TYPES =====
