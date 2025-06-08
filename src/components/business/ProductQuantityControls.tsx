@@ -65,7 +65,7 @@ export const ProductQuantityControls: React.FC<
         <Ionicons
           name={item.quantity === 1 ? "trash-outline" : "remove"}
           size={16}
-          color={productVisibility.updateQuantity ? "#198754" : "#ccc"}
+          color={productVisibility.updateQuantity ? "#dc3545" : "#ccc"}
         />
       </TouchableOpacity>
 

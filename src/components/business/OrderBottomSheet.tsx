@@ -59,10 +59,7 @@ export default function OrderBottomSheet({
   }, [visible]);
 
   const formatPrice = (price: number): string => {
-    return new Intl.NumberFormat("vi-VN", {
-      style: "currency",
-      currency: "VND",
-    }).format(price);
+    return new Intl.NumberFormat("vi-VN").format(price);
   };
 
   const totalItems = orderItems.reduce((sum, item) => sum + item.quantity, 0);

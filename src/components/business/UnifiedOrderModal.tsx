@@ -32,6 +32,7 @@ import {
   formatPrice as formatPriceUtil,
 } from "../../utils/orderCalculations";
 import OrderActionButtons from "./OrderActionButtons";
+import PaymentModal from "./PaymentModal";
 import ProductQuantityControls from "./ProductQuantityControls";
 
 interface OrderItem {
@@ -40,6 +41,15 @@ interface OrderItem {
   price: number;
   quantity: number;
   product: Product;
+}
+
+interface PaymentData {
+  totalAmount: number;
+  customerPaid: number;
+  change: number;
+  paymentMethod: "cash" | "bank";
+  bankCode?: string;
+  voucher?: string;
 }
 
 interface UnifiedOrderModalProps {
@@ -72,10 +82,7 @@ const SwipeableOrderItem: React.FC<{
   const translateX = useRef(new Animated.Value(0)).current;
 
   const formatPrice = (price: number): string => {
-    return new Intl.NumberFormat("vi-VN", {
-      style: "currency",
-      currency: "VND",
-    }).format(price);
+    return new Intl.NumberFormat("vi-VN").format(price);
   };
 
   const handleSwipeGesture = (event: PanGestureHandlerGestureEvent) => {
@@ -208,6 +215,7 @@ export default function UnifiedOrderModal({
   const [orderStatus, setOrderStatus] = useState<string>("");
   const [orderStatusText, setOrderStatusText] = useState<string>("");
   const [orderDetailItems, setOrderDetailItems] = useState<OrderItem[]>([]);
+  const [paymentModalVisible, setPaymentModalVisible] = useState(false);
 
   useEffect(() => {
     if (visible && selectedOrder) {
@@ -315,12 +323,9 @@ export default function UnifiedOrderModal({
     }
   };
 
-  const formatPrice = (price: number): string => {
-    return new Intl.NumberFormat("vi-VN", {
-      style: "currency",
-      currency: "VND",
-    }).format(price);
-  };
+  // const formatPrice = (price: number): string => {
+  //   return new Intl.NumberFormat("vi-VN").format(price);
+  // };
 
   const formatDateTime = (dateString?: string) => {
     if (!dateString) return { date: "", time: "" };
@@ -475,6 +480,30 @@ export default function UnifiedOrderModal({
     }
   };
 
+  const handlePayment = async (paymentData: PaymentData) => {
+    try {
+      if (selectedOrder && orderDetail) {
+        // Log payment data for debugging
+        console.log("💰 Payment data:", paymentData);
+
+        await ordersService.receiveOrder(orderDetail.id);
+        Alert.alert(
+          "Thành công",
+          `Đã thanh toán đơn hàng\nTiền khách trả: ${paymentData.customerPaid.toLocaleString(
+            "vi-VN"
+          )}\nTiền thối lại: ${Math.abs(paymentData.change).toLocaleString(
+            "vi-VN"
+          )}`
+        );
+        setPaymentModalVisible(false);
+        onClose();
+        onRefresh?.();
+      }
+    } catch (error: any) {
+      Alert.alert("Lỗi", `Không thể thanh toán đơn hàng: ${error.message}`);
+    }
+  };
+
   const handleOrderAction = async (action: string) => {
     if (selectedOrder && orderDetail) {
       try {
@@ -517,29 +546,8 @@ export default function UnifiedOrderModal({
             console.log("In tạm tính cho đơn hàng:", orderDetail.id);
             break;
           case "payment":
-            Alert.alert(
-              "Thanh toán đơn hàng",
-              "Xác nhận đã nhận thanh toán cho đơn hàng này?",
-              [
-                { text: "Không", style: "cancel" },
-                {
-                  text: "Có",
-                  onPress: async () => {
-                    try {
-                      await ordersService.receiveOrder(orderDetail.id);
-                      Alert.alert("Thành công", "Đã thanh toán đơn hàng");
-                      onClose();
-                      onRefresh?.();
-                    } catch (error: any) {
-                      Alert.alert(
-                        "Lỗi",
-                        `Không thể thanh toán đơn hàng: ${error.message}`
-                      );
-                    }
-                  },
-                },
-              ]
-            );
+            // Mở PaymentModal thay vì confirm trực tiếp
+            setPaymentModalVisible(true);
             break;
           case "delete_order":
             Alert.alert("Xóa đơn hàng", "Bạn có chắc muốn xóa đơn hàng này?", [
@@ -743,6 +751,14 @@ export default function UnifiedOrderModal({
             </View>
           </>
         )}
+
+        {/* Payment Modal */}
+        <PaymentModal
+          visible={paymentModalVisible}
+          totalAmount={totalAmount}
+          onClose={() => setPaymentModalVisible(false)}
+          onPayment={handlePayment}
+        />
       </View>
     </Modal>
   );

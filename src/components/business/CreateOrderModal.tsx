@@ -74,6 +74,14 @@ const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
   };
 
   const handleCreateOrder = async () => {
+    // Prevent double submission
+    if (loading) {
+      console.log(
+        "⚠️ Order creation already in progress, ignoring duplicate call"
+      );
+      return;
+    }
+
     if (!table) {
       Alert.alert("Lỗi", "Chưa chọn bàn");
       return;
@@ -140,6 +148,8 @@ const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
 
       const response = await ordersService.createOrder(orderData);
 
+      console.log("📋 Create order response:", response);
+
       if (response.successful && response.data) {
         Alert.alert(
           "Thành công",
@@ -170,10 +180,7 @@ const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
   };
 
   const formatPrice = (price: number) => {
-    return new Intl.NumberFormat("vi-VN", {
-      style: "currency",
-      currency: "VND",
-    }).format(price);
+    return new Intl.NumberFormat("vi-VN").format(price);
   };
 
   const renderOrderItem = ({ item }: { item: OrderItem }) => (

@@ -67,8 +67,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   logo: {
-    width: 160,
-    height: 50,
+    width: 140,
+    height: 40,
     objectFit: "contain",
     shadowColor: "#fff",
     shadowOffset: { width: 0, height: 0 },

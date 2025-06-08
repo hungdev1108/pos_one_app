@@ -223,7 +223,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#198754",
   },
   secondaryButton: {
-    backgroundColor: "#6c757d",
+    backgroundColor: "#5470ff",
   },
   dangerButton: {
     backgroundColor: "#dc3545",

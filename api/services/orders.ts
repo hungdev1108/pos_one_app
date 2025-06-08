@@ -486,15 +486,42 @@ class OrdersService {
     try {
       console.log('➕ Creating new order:', orderData);
       
-      const response = await apiClient.post<CreateOrderResponse>(
+      const response = await apiClient.post<any>(
         this.baseUrl,
         orderData
       );
 
       console.log('✅ Order created successfully:', response);
 
+      // Kiểm tra nếu API trả về ID đơn hàng (number hoặc string)
+      if (response && (typeof response === 'number' || typeof response === 'string')) {
+        return {
+          successful: true,
+          data: {
+            id: response.toString(),
+            code: response.toString(),
+            tableId: orderData.tableId,
+            createDate: new Date().toISOString(),
+          }
+        };
+      }
+
+      // Kiểm tra format cũ với field successful
       if (response && response.successful) {
         return response;
+      }
+
+      // Kiểm tra nếu có data chứa ID
+      if (response && response.data && (typeof response.data === 'number' || typeof response.data === 'string')) {
+        return {
+          successful: true,
+          data: {
+            id: response.data.toString(),
+            code: response.data.toString(),
+            tableId: orderData.tableId,
+            createDate: new Date().toISOString(),
+          }
+        };
       }
 
       throw new Error(response?.error || "Lỗi khi tạo đơn hàng");
@@ -683,10 +710,7 @@ class OrdersService {
    * Format giá tiền theo định dạng Việt Nam
    */
   formatPrice(price: number): string {
-    return new Intl.NumberFormat("vi-VN", {
-      style: "currency",
-      currency: "VND",
-    }).format(price);
+    return new Intl.NumberFormat("vi-VN").format(price);
   }
 
   /**

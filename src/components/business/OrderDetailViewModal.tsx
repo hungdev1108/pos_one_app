@@ -93,10 +93,7 @@ export default function OrderDetailViewModal({
   };
 
   const formatPrice = (price: number): string => {
-    return new Intl.NumberFormat("vi-VN", {
-      style: "currency",
-      currency: "VND",
-    }).format(price);
+    return new Intl.NumberFormat("vi-VN").format(price);
   };
 
   const formatDateTime = (dateString?: string) => {

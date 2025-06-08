@@ -128,6 +128,15 @@ class ApiClient {
   async post<T>(url: string, data?: any, config?: AxiosRequestConfig): Promise<T> {
     const response = await this.instance.post<T>(url, data, config);
     
+    // Debug log for order creation
+    if (url.includes('/orders') && !url.includes('/confirm')) {
+      console.log('🔍 Order creation response details:', {
+        status: response.status,
+        data: response.data,
+        dataType: typeof response.data,
+      });
+    }
+    
     // Xử lý đặc biệt cho các endpoint /confirm trả về 200 với body rỗng
     if (url.includes('/confirm') && response.status === 200 && 
         (response.data === '' || response.data === undefined)) {

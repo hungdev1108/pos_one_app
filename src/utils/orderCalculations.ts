@@ -213,8 +213,5 @@ export const calculateOrderSummary = (
  * Format giá tiền theo định dạng Việt Nam
  */
 export const formatPrice = (price: number): string => {
-  return new Intl.NumberFormat("vi-VN", {
-    style: "currency",
-    currency: "VND",
-  }).format(price);
+  return new Intl.NumberFormat("vi-VN").format(price);
 }; 

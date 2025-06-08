@@ -66,10 +66,7 @@ const AreasTablesView: React.FC<AreasTablesViewProps> = ({
   };
 
   const formatPrice = (price: number): string => {
-    return new Intl.NumberFormat("vi-VN", {
-      style: "currency",
-      currency: "VND",
-    }).format(price);
+    return new Intl.NumberFormat("vi-VN").format(price);
   };
 
   const renderTable = (table: Table) => {
