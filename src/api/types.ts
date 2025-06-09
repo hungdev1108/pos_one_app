@@ -103,6 +103,7 @@ export interface FileData {
 export interface Product {
   id: string;
   title: string;
+  code?: string; // Mã sản phẩm
   categoryId: string;
   categoryName: string;
   price: number;
@@ -295,6 +296,9 @@ export interface OrderDetail {
   totalAmount: number;
   discount: number;
   totalPayableAmount: number;
+  // Cờ cho phép thêm sản phẩm
+  isAddProduct?: boolean;
+  tuDongXuatKhoBanHang?: number; // 0: Không tự động, 1: Tự động xuất kho
   // Thông tin giảm giá
   DiscountType: number; // 0: Không giảm, 1: %, 2: Số tiền, 3: Đến mức giá
   Discount: number; // Giá trị giảm giá

@@ -563,9 +563,14 @@ class OrdersService {
     try {
       console.log('🍽️ Updating order products:', orderId, products);
       
-      const response = await apiClient.put<OrderOperationResponse>(
+      const response = await apiClient.post<OrderOperationResponse>(
         `${this.baseUrl}/${orderId}/products`,
-        { products }
+        { products },
+        {
+          headers: {
+            'x-http-method-override': 'PUT',
+          },
+        }
       );
 
       console.log('✅ Order products updated successfully:', response);
@@ -586,21 +591,192 @@ class OrdersService {
    */
   async removeOrderProduct(orderId: string, productId: string): Promise<OrderOperationResponse> {
     try {
-      console.log('🗑️ Removing product from order:', orderId, productId);
+      console.log('➖ Removing product from order:', orderId, productId);
       
       const response = await apiClient.delete<OrderOperationResponse>(
         `${this.baseUrl}/${orderId}/products/${productId}`
       );
 
-      console.log('✅ Product removed successfully:', response);
+      console.log('✅ Product removed from order:', response);
+
+      if (response.data?.successful) {
+        return response.data;
+      }
+
+      throw new Error(response.data?.error || "Lỗi khi xóa sản phẩm khỏi đơn hàng");
+    } catch (error: any) {
+      console.error("❌ Error removing product from order:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * Cập nhật số lượng sản phẩm hiện có trong đơn hàng (thay vì thêm mới)
+   */
+  async updateProductQuantityInOrder(orderId: string, productId: string, newQuantity: number): Promise<OrderOperationResponse> {
+    try {
+      console.log('📈 Updating product quantity in order:', orderId, productId, newQuantity);
+
+      // Lấy chi tiết đơn hàng để có thông tin sản phẩm hiện tại
+      const orderDetail = await this.getOrderDetail(orderId);
+      const existingProduct = orderDetail.products?.find(p => p.id === productId);
+      
+      if (!existingProduct) {
+        throw new Error("Sản phẩm không tồn tại trong đơn hàng");
+      }
+
+             // Calculate totals for updated quantity
+       const totalCost = existingProduct.price * newQuantity;
+       const totalCostInclideVAT = existingProduct.priceIncludeVAT * newQuantity;
+
+       // Chuẩn bị payload để update sản phẩm hiện có - match format thành công
+       const payload = {
+         id: existingProduct.id, // Sử dụng ID hiện có của sản phẩm trong đơn hàng
+         productId: productId,
+         productCode: null, // Để server tự lấy
+         quantity: newQuantity,
+         price: existingProduct.price,
+         properties: null,
+         name: null, // Để server tự lấy
+         type: 0,
+         unitId: null,
+         unitName: "Cái",
+         totalCost: totalCost,
+         totalCostInclideVAT: totalCostInclideVAT,
+         priceIncludeVAT: existingProduct.priceIncludeVAT,
+         vat: 10,
+         isConfirm: false,
+         image: {
+           base64data: null,
+           contentType: null,
+           uploadedBytes: 0,
+           uploadData: null,
+           firstUpload: true,
+           lastUpload: false,
+           fileName: null,
+           folder: null,
+           type: 11,
+           filePath: null,
+           fullPath: null,
+           fileExtension: null
+         },
+         serials: [],
+         campaignId: null,
+       };
+
+      console.log('📦 Final updateProductQuantityInOrder payload:', JSON.stringify(payload, null, 2));
+
+      const response = await apiClient.post<OrderOperationResponse>(
+        `${this.baseUrl}/${orderId}/products`,
+        payload
+      );
+
+      console.log('✅ Product quantity updated:', response);
 
       if (response && response.successful) {
         return response;
       }
 
-      throw new Error(response?.error || "Lỗi khi xóa sản phẩm khỏi đơn hàng");
+      if (response && typeof response === 'object') {
+        return {
+          successful: true,
+          data: response,
+        };
+      }
+
+      throw new Error("Lỗi khi cập nhật số lượng sản phẩm");
     } catch (error: any) {
-      console.error("❌ Error removing product from order:", error);
+      console.error("❌ Error updating product quantity:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * Thêm sản phẩm vào đơn hàng hiện có
+   */
+  async addProductToOrder(orderId: string, productData: {
+    productId: string;
+    quantity: number;
+    price: number;
+    priceIncludeVAT?: number;
+    unitName: string;
+    vat?: number;
+    properties?: string;
+    unitId?: string;
+    campaignId?: string;
+    serials?: string[];
+    isSplit?: boolean;
+    name?: string;
+    productCode?: string;
+  }): Promise<OrderOperationResponse> {
+    try {
+      console.log('➕ Adding product to existing order:', orderId, productData);
+
+      // Generate unique GUID for new OrderProduct
+      const generateGuid = () => {
+        return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+          const r = Math.random() * 16 | 0;
+          const v = c == 'x' ? r : (r & 0x3 | 0x8);
+          return v.toString(16);
+        });
+      };
+
+      // Calculate totals
+      const totalCost = productData.price * productData.quantity;
+      const totalCostInclideVAT = (productData.priceIncludeVAT || productData.price) * productData.quantity;
+
+      // Chuẩn bị payload theo đúng format API - match với Postman success
+      const payload = {
+        id: generateGuid(), // Generate unique GUID thay vì fake GUID
+        productId: productData.productId,
+        productCode: productData.productCode || null, // Sử dụng productCode từ productData hoặc null
+        quantity: productData.quantity,
+        price: productData.price,
+        properties: productData.properties || null,
+        name: productData.name || null, // Sử dụng name từ productData hoặc null
+        type: 0,
+        unitId: null, // null thay vì fake GUID
+        unitName: productData.unitName || "Cái",
+        totalCost: totalCost,
+        totalCostInclideVAT: totalCostInclideVAT,
+        priceIncludeVAT: productData.priceIncludeVAT || productData.price,
+        vat: productData.vat || 10,
+        isConfirm: false,
+        image: {
+          base64data: null,
+          contentType: null,
+          uploadedBytes: 0,
+          uploadData: null,
+          firstUpload: true,
+          lastUpload: false,
+          fileName: null,
+          folder: null,
+          type: 11,
+          filePath: null,
+          fullPath: null,
+          fileExtension: null
+        },
+        serials: productData.serials || [],
+        campaignId: productData.campaignId || null,
+      };
+
+      console.log('📦 Final addProductToOrder payload:', JSON.stringify(payload, null, 2));
+
+      const response = await apiClient.post<OrderOperationResponse>(
+        `${this.baseUrl}/${orderId}/products`,
+        payload
+      );
+
+      console.log('✅ Product added to order:', response);
+
+      // API success case: status 200 với data có thể là empty string
+      // Nếu không có error và response tồn tại, coi như thành công
+      return {
+        successful: true,
+        data: response,
+      };
+    } catch (error: any) {
+      console.error("❌ Error adding product to order:", error);
       throw error;
     }
   }
@@ -729,6 +905,55 @@ class OrdersService {
         minute: "2-digit",
       }),
       fullDateTime: date.toLocaleString("vi-VN"),
+    };
+  }
+
+  /**
+   * Kiểm tra xem đơn hàng có cho phép thêm sản phẩm không
+   */
+  canAddProductToOrder(orderDetail: OrderDetail): { canAdd: boolean; reason?: string } {
+    // Kiểm tra cờ isAddProduct từ API
+    if (!orderDetail.isAddProduct) {
+      return { 
+        canAdd: false, 
+        reason: "Đơn hàng không cho phép thêm sản phẩm" 
+      };
+    }
+
+    // ❌ Thanh toán (ReceiveDate != null) - LUÔN LUÔN cấm
+    if (orderDetail.receiveDate) {
+      return { 
+        canAdd: false, 
+        reason: "Không thể thêm sản phẩm vào đơn hàng đã thanh toán" 
+      };
+    }
+
+    // ❌ Tạm tính (SendDate != null) - CHỈ khi TuDongXuatKhoBanHang = 1
+    if (orderDetail.sendDate && orderDetail.tuDongXuatKhoBanHang !== 1) {
+      return { 
+        canAdd: false, 
+        reason: "Không thể thêm sản phẩm vào đơn hàng đã tạm tính" 
+      };
+    }
+
+    // ✅ Đơn hàng mới (CreateDate != null, ConfirmDate = null)
+    if (orderDetail.createDate && !orderDetail.confirmDate) {
+      return { canAdd: true };
+    }
+
+    // ✅ Đã xác nhận (ConfirmDate != null, SendDate = null)
+    if (orderDetail.confirmDate && !orderDetail.sendDate) {
+      return { canAdd: true };
+    }
+
+    // ✅ Tạm tính với tự động xuất kho
+    if (orderDetail.sendDate && orderDetail.tuDongXuatKhoBanHang === 1) {
+      return { canAdd: true };
+    }
+
+    return { 
+      canAdd: false, 
+      reason: "Trạng thái đơn hàng không hợp lệ" 
     };
   }
 }

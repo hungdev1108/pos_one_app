@@ -4,7 +4,7 @@ import {
   Product,
   Table,
   ordersService,
-} from "@/api";
+} from "@/src/api";
 import { OrderMode } from "@/src/services/buttonVisibilityService";
 import { Ionicons } from "@expo/vector-icons";
 import React, { useEffect, useRef, useState } from "react";
@@ -31,6 +31,7 @@ import {
   calculateOrderSummary,
   formatPrice as formatPriceUtil,
 } from "../../utils/orderCalculations";
+import CustomerInfoModal from "./CustomerInfoModal";
 import OrderActionButtons from "./OrderActionButtons";
 import PaymentModal from "./PaymentModal";
 import ProductQuantityControls from "./ProductQuantityControls";
@@ -52,6 +53,12 @@ interface PaymentData {
   voucher?: string;
 }
 
+interface CustomerInfo {
+  customerName: string;
+  customerPhone: string;
+  customerAddress: string;
+}
+
 interface UnifiedOrderModalProps {
   visible: boolean;
   orderItems: OrderItem[];
@@ -66,6 +73,8 @@ interface UnifiedOrderModalProps {
   title?: string;
   selectedOrder?: OrderListItem;
   onRefresh?: () => void;
+  onClearOrder?: () => void;
+  onOrderCreated?: (orderId: string) => void;
 }
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
@@ -208,6 +217,8 @@ export default function UnifiedOrderModal({
   title,
   selectedOrder,
   onRefresh,
+  onClearOrder,
+  onOrderCreated,
 }: UnifiedOrderModalProps) {
   const insets = useSafeAreaInsets();
   const [loading, setLoading] = useState(false);
@@ -216,6 +227,16 @@ export default function UnifiedOrderModal({
   const [orderStatusText, setOrderStatusText] = useState<string>("");
   const [orderDetailItems, setOrderDetailItems] = useState<OrderItem[]>([]);
   const [paymentModalVisible, setPaymentModalVisible] = useState(false);
+
+  // Customer info modal state
+  const [customerInfoModalVisible, setCustomerInfoModalVisible] =
+    useState(false);
+  const [shouldResetCustomerInfo, setShouldResetCustomerInfo] = useState(false);
+  const [customerInfo, setCustomerInfo] = useState<CustomerInfo>({
+    customerName: "",
+    customerPhone: "",
+    customerAddress: "",
+  });
 
   useEffect(() => {
     if (visible && selectedOrder) {
@@ -228,6 +249,17 @@ export default function UnifiedOrderModal({
       setOrderStatusText("");
     }
   }, [visible, selectedOrder]);
+
+  // Reset shouldResetCustomerInfo flag sau khi đã được sử dụng
+  useEffect(() => {
+    if (shouldResetCustomerInfo) {
+      // Delay một chút để CustomerInfoModal có thời gian xử lý reset
+      const timer = setTimeout(() => {
+        setShouldResetCustomerInfo(false);
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [shouldResetCustomerInfo]);
 
   const loadOrderDetail = async () => {
     if (!selectedOrder) return;
@@ -480,6 +512,123 @@ export default function UnifiedOrderModal({
     }
   };
 
+  const handleCustomerInfoSave = (newCustomerInfo: CustomerInfo) => {
+    setCustomerInfo(newCustomerInfo);
+  };
+
+  const handleCreateOrder = async () => {
+    if (loading) {
+      console.log(
+        "⚠️ Order creation already in progress, ignoring duplicate call"
+      );
+      return;
+    }
+
+    if (orderItems.length === 0) {
+      Alert.alert("Lỗi", "Chưa có món nào được chọn");
+      return;
+    }
+
+    try {
+      setLoading(true);
+
+      // Chuẩn bị dữ liệu sản phẩm
+      const products = orderItems.map((item) => ({
+        productId: item.product.id,
+        quantity: item.quantity,
+        price: item.product.price,
+        priceIncludeVAT: item.product.priceAfterDiscount || item.product.price,
+        note: "",
+        vat: 10,
+        name: item.product.title,
+        productCode: item.product.code,
+        unitName: item.product.unitName || "Cái",
+      }));
+
+      // Sử dụng thông tin khách hàng đã lưu hoặc giá trị mặc định
+      const finalCustomerName =
+        customerInfo.customerName || "Người mua không cung cấp thông tin";
+      const finalCustomerPhone = customerInfo.customerPhone || "0000000000";
+
+      // Tạo request
+      const orderData: any = {
+        customerName: finalCustomerName,
+        customerPhone: finalCustomerPhone,
+        products,
+        note: "",
+        paymentMethod: 0,
+        priceIncludeVAT: true,
+        discountType: 0,
+        discount: 0,
+        discountVAT: 0,
+        orderCustomerName: finalCustomerName,
+        orderCustomerPhone: finalCustomerPhone,
+        isDelivery: false,
+        debt: {
+          debit: 0,
+          debitExpire: new Date().toISOString(),
+        },
+        delivery: {
+          deliveryId: 0,
+          deliveryName: "",
+          deliveryCode: "",
+          deliveryFee: 0,
+          cod: false,
+        },
+        flashSales: [],
+      };
+
+      // Chỉ thêm tableId nếu có bàn được chọn
+      if (selectedTable?.id) {
+        orderData.tableId = selectedTable.id;
+      }
+
+      console.log("🍽️ Creating order with data:", orderData);
+
+      const response = await ordersService.createOrder(orderData);
+
+      console.log("📋 Create order response:", response);
+
+      if (response.successful && response.data) {
+        Alert.alert(
+          "Thành công",
+          `Đã tạo đơn hàng ${response.data.code}${
+            selectedTable ? ` cho ${selectedTable.name}` : ""
+          }`,
+          [
+            {
+              text: "OK",
+              onPress: () => {
+                // Reset customer info để lần tạo tiếp theo không còn dữ liệu cũ
+                setShouldResetCustomerInfo(true);
+                setCustomerInfo({
+                  customerName: "",
+                  customerPhone: "",
+                  customerAddress: "",
+                });
+
+                onClearOrder?.(); // Xóa giỏ hàng tạm
+                onClose();
+                // Thông báo cho home.tsx để chuyển tab và refresh
+                onOrderCreated?.(response.data!.id);
+              },
+            },
+          ]
+        );
+      } else {
+        throw new Error(response.error || "Không thể tạo đơn hàng");
+      }
+    } catch (error: any) {
+      console.error("❌ Error creating order:", error);
+      Alert.alert(
+        "Lỗi",
+        error.message || "Có lỗi xảy ra khi tạo đơn hàng. Vui lòng thử lại."
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handlePayment = async (paymentData: PaymentData) => {
     try {
       if (selectedOrder && orderDetail) {
@@ -531,10 +680,8 @@ export default function UnifiedOrderModal({
             ]);
             break;
           case "save":
-            // Logic lưu đơn hàng - delegate to onCreateOrder if available
-            if (onCreateOrder) {
-              onCreateOrder();
-            }
+            // Logic lưu đơn hàng - gọi hàm tạo đơn hàng mới
+            await handleCreateOrder();
             break;
           case "print_kitchen":
             // Logic in chế biến
@@ -605,9 +752,8 @@ export default function UnifiedOrderModal({
       // Handle actions for create mode (chưa lưu đơn hàng)
       switch (action) {
         case "save":
-          if (onCreateOrder) {
-            onCreateOrder();
-          }
+          // Gọi hàm tạo đơn hàng thực sự
+          await handleCreateOrder();
           break;
         case "cancel":
           onClose();
@@ -676,13 +822,26 @@ export default function UnifiedOrderModal({
         <View style={styles.header}>
           <Text style={styles.headerTitle}>
             {title ||
-              (selectedTable
+              (selectedOrder
+                ? "Chi tiết đơn hàng"
+                : selectedTable
                 ? `Chi tiết - ${selectedTable.name}`
-                : "Chi tiết đơn hàng")}
+                : "Tạo đơn hàng mới")}
           </Text>
-          <TouchableOpacity style={styles.closeButton} onPress={onClose}>
-            <Ionicons name="close" size={24} color="#333" />
-          </TouchableOpacity>
+          <View style={styles.headerActions}>
+            {/* Customer Info Icon - Only show for new orders */}
+            {!selectedOrder && (
+              <TouchableOpacity
+                style={styles.customerInfoButton}
+                onPress={() => setCustomerInfoModalVisible(true)}
+              >
+                <Ionicons name="person-add" size={20} color="#198754" />
+              </TouchableOpacity>
+            )}
+            <TouchableOpacity style={styles.closeButton} onPress={onClose}>
+              <Ionicons name="close" size={24} color="#333" />
+            </TouchableOpacity>
+          </View>
         </View>
 
         {loading ? (
@@ -759,6 +918,15 @@ export default function UnifiedOrderModal({
           onClose={() => setPaymentModalVisible(false)}
           onPayment={handlePayment}
         />
+
+        {/* Customer Info Modal */}
+        <CustomerInfoModal
+          visible={customerInfoModalVisible}
+          initialData={customerInfo}
+          onClose={() => setCustomerInfoModalVisible(false)}
+          onSave={handleCustomerInfoSave}
+          shouldReset={shouldResetCustomerInfo}
+        />
       </View>
     </Modal>
   );
@@ -783,6 +951,19 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "bold",
     color: "#333",
+    flex: 1,
+  },
+  headerActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  customerInfoButton: {
+    padding: 8,
+    borderRadius: 8,
+    backgroundColor: "#f8f9fa",
+    borderWidth: 1,
+    borderColor: "#198754",
   },
   closeButton: {
     padding: 4,

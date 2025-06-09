@@ -1,4 +1,4 @@
-import { UserInfo } from "@/api";
+import { UserInfo } from "@/src/api";
 import { Ionicons } from "@expo/vector-icons";
 import React from "react";
 import {

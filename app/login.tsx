@@ -1,4 +1,4 @@
-import { authService, LoginRequest } from "@/api";
+import { authService, LoginRequest } from "@/src/api";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import React, { useRef, useState } from "react";

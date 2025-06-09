@@ -1,4 +1,4 @@
-import { Area, Table, TableStatus } from "@/api/types";
+import { Area, Table, TableStatus } from "@/src/api/types";
 import { Ionicons } from "@expo/vector-icons";
 import React from "react";
 import {

@@ -17,7 +17,7 @@ import {
   OrderListItem,
   OrdersRequestParams,
   ordersService,
-} from "@/api";
+} from "@/src/api";
 
 interface OrdersViewProps {
   onOrderPress?: (order: OrderListItem) => void;
@@ -295,10 +295,8 @@ const OrdersView: React.FC<OrdersViewProps> = ({ onOrderPress, onRefresh }) => {
   };
 
   const renderActionButtons = (order: OrderListItem) => {
-    const buttons = [];
-
-    // Nút Chi tiết luôn có
-    buttons.push(
+    // Chỉ hiển thị nút Chi tiết
+    return [
       <TouchableOpacity
         key="detail"
         style={[styles.actionButton, styles.detailButton]}
@@ -306,77 +304,8 @@ const OrdersView: React.FC<OrdersViewProps> = ({ onOrderPress, onRefresh }) => {
       >
         <Ionicons name="eye" size={16} color="#198754" />
         <Text style={styles.detailButtonText}>Chi tiết</Text>
-      </TouchableOpacity>
-    );
-
-    // Các nút action dựa trên trạng thái hiện tại
-    switch (activeTab) {
-      case OrderTabType.NEW:
-        buttons.push(
-          <TouchableOpacity
-            key="confirm"
-            style={[styles.actionButton, styles.confirmButton]}
-            onPress={() => handleOrderAction(order.id, "confirm")}
-          >
-            <Ionicons name="checkmark" size={16} color="#fff" />
-            <Text style={styles.actionButtonText}>Xác nhận</Text>
-          </TouchableOpacity>
-        );
-        buttons.push(
-          <TouchableOpacity
-            key="cancel"
-            style={[styles.actionButton, styles.cancelButton]}
-            onPress={() => handleOrderAction(order.id, "cancel")}
-          >
-            <Ionicons name="close" size={16} color="#fff" />
-            <Text style={styles.actionButtonText}>Hủy</Text>
-          </TouchableOpacity>
-        );
-        break;
-
-      case OrderTabType.CONFIRMED:
-        buttons.push(
-          <TouchableOpacity
-            key="send"
-            style={[styles.actionButton, styles.sendButton]}
-            onPress={() => handleOrderAction(order.id, "send")}
-          >
-            <Ionicons name="restaurant" size={16} color="#fff" />
-            <Text style={styles.actionButtonText}>
-              {fnbConfig?.LoaiFnB === 1 ? "Phục vụ" : "Phục vụ"}
-            </Text>
-          </TouchableOpacity>
-        );
-        buttons.push(
-          <TouchableOpacity
-            key="cancel"
-            style={[styles.actionButton, styles.cancelButton]}
-            onPress={() => handleOrderAction(order.id, "cancel")}
-          >
-            <Ionicons name="close" size={16} color="#fff" />
-            <Text style={styles.actionButtonText}>Hủy</Text>
-          </TouchableOpacity>
-        );
-        break;
-
-      case OrderTabType.SENT:
-        if (fnbConfig?.LoaiFnB === 2) {
-          // Chỉ có nút thanh toán nếu là thanh toán tại bàn
-          buttons.push(
-            <TouchableOpacity
-              key="receive"
-              style={[styles.actionButton, styles.receiveButton]}
-              onPress={() => handleOrderAction(order.id, "receive")}
-            >
-              <Ionicons name="card" size={16} color="#fff" />
-              <Text style={styles.actionButtonText}>Thanh toán</Text>
-            </TouchableOpacity>
-          );
-        }
-        break;
-    }
-
-    return buttons;
+      </TouchableOpacity>,
+    ];
   };
 
   const renderOrderItem = ({ item }: { item: OrderListItem }) => {

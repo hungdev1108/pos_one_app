@@ -1,5 +1,5 @@
-import { Category, Product } from "@/api";
-import { API_CONFIG } from "@/api/constants";
+import { Category, Product } from "@/src/api";
+import { API_CONFIG } from "@/src/api/constants";
 import { Entypo, Ionicons, MaterialIcons } from "@expo/vector-icons";
 import { Image as ExpoImage } from "expo-image";
 import React, { useEffect, useRef, useState } from "react";
@@ -24,6 +24,7 @@ interface AllCategoriesProductListProps {
   selectedCategoryId?: string | null;
   orderItems?: { id: string; quantity: number }[];
   onUpdateQuantity?: (productId: string, newQuantity: number) => void;
+  onCategoryPress?: () => void;
 }
 
 const { width } = Dimensions.get("window");
@@ -40,6 +41,7 @@ const AllCategoriesProductList: React.FC<AllCategoriesProductListProps> = ({
   selectedCategoryId,
   orderItems = [],
   onUpdateQuantity,
+  onCategoryPress,
 }) => {
   const scrollViewRef = useRef<ScrollView>(null);
   const categoryRefs = useRef<{ [categoryId: string]: number }>({});
@@ -214,10 +216,16 @@ const AllCategoriesProductList: React.FC<AllCategoriesProductListProps> = ({
         }}
       >
         {/* Category Header */}
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>{category.title}</Text>
+        <TouchableOpacity
+          style={styles.sectionHeader}
+          onPress={onCategoryPress}
+        >
+          <View style={styles.sectionHeaderContent}>
+            <Text style={styles.sectionTitle}>{category.title}</Text>
+            <Ionicons name="chevron-down" size={20} color="#333" />
+          </View>
           <View style={styles.sectionDivider} />
-        </View>
+        </TouchableOpacity>
 
         {/* Products Grid */}
         {products.length === 0 ? (
@@ -286,17 +294,22 @@ const styles = StyleSheet.create({
     backgroundColor: "#f8f9fa",
     paddingVertical: 10,
     paddingHorizontal: 0,
-    marginBottom: 12,
+    marginBottom: 8,
     width: "100%",
+  },
+  sectionHeaderContent: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 10,
   },
   sectionTitle: {
     fontSize: 18,
     fontWeight: "bold",
     color: "#333",
-    marginBottom: 8,
   },
   sectionDivider: {
-    height: 2,
+    height: 1,
     backgroundColor: "#198754",
     borderRadius: 1,
   },
@@ -308,7 +321,7 @@ const styles = StyleSheet.create({
   },
   productItem: {
     width: ITEM_WIDTH,
-    marginBottom: 16,
+    marginBottom: 12,
   },
   productCard: {
     backgroundColor: "#fff",

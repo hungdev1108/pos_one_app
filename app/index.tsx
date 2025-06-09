@@ -1,4 +1,4 @@
-import { authService } from "@/api";
+import { authService } from "@/src/api";
 import { ThemedText } from "@/src/components/ui/ThemedText";
 import { router } from "expo-router";
 import React, { useEffect } from "react";

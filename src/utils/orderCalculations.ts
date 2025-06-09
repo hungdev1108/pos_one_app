@@ -1,4 +1,4 @@
-import { OrderDetail, OrderDetailProduct, VoucherDetail, VoucherExtended } from "@/api";
+import { OrderDetail, OrderDetailProduct, VoucherDetail, VoucherExtended } from "@/src/api";
 
 /**
  * Hàm hỗ trợ lấy giá trị VAT của sản phẩm (xử lý cả VAT và vat)

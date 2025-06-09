@@ -9,20 +9,21 @@ import {
   authService,
   Category,
   OrderListItem,
+  ordersService,
   Product,
   Table,
   UserInfo,
   warehouseService,
-} from "@/api";
+} from "@/src/api";
 import AllCategoriesProductList from "@/src/components/business/AllCategoriesProductList";
 import AreasTablesView from "@/src/components/business/AreasTablesView";
 import CategoryBottomSheet from "@/src/components/business/CategoryBottomSheet";
-import CreateOrderModal from "@/src/components/business/CreateOrderModal";
 import OrderBottomSheet from "@/src/components/business/OrderBottomSheet";
 import OrdersView from "@/src/components/business/OrdersView";
 import UnifiedOrderModal from "@/src/components/business/UnifiedOrderModal";
 import AppBar from "@/src/components/common/AppBar";
 import DrawerMenu from "@/src/components/common/DrawerMenu";
+import { showAddProductToast } from "@/src/components/common/ToastCustome";
 
 interface OrderItem {
   id: string;
@@ -70,7 +71,8 @@ export default function HomeScreen() {
   const [selectedOrder, setSelectedOrder] = useState<OrderListItem | undefined>(
     undefined
   );
-  const [createOrderVisible, setCreateOrderVisible] = useState(false);
+  const [orderDetailRefreshTrigger, setOrderDetailRefreshTrigger] = useState(0);
+
   const [unifiedOrderModalVisible, setUnifiedOrderModalVisible] =
     useState(false);
 
@@ -317,6 +319,35 @@ export default function HomeScreen() {
     }
   };
 
+  const loadTableOrder = async (orderId: string) => {
+    try {
+      const orderDetail = await ordersService.getOrderDetail(orderId);
+      if (orderDetail) {
+        // Tạo OrderListItem từ orderDetail
+        const tableOrderListItem: OrderListItem = {
+          id: orderDetail.id,
+          code: orderDetail.code,
+          customerName: orderDetail.customerName || "Khách hàng",
+          customerPhone: orderDetail.customerPhone || "",
+          customerAddress: "",
+          countProducts: orderDetail.products?.length || 0,
+          totalPrice:
+            orderDetail.totalPayableAmount ||
+            orderDetail.products?.reduce(
+              (sum, p) => sum + (p.totalCostInclideVAT || p.totalCost || 0),
+              0
+            ) ||
+            0,
+          date: orderDetail.createDate,
+          exportWarehouse: false,
+        };
+        setSelectedOrder(tableOrderListItem);
+      }
+    } catch (error) {
+      console.error("Error loading table order:", error);
+    }
+  };
+
   const handleCategorySelect = (categoryId: string) => {
     setSelectedCategoryId(categoryId);
     const category = categories.find((cat) => cat.id === categoryId);
@@ -338,34 +369,47 @@ export default function HomeScreen() {
   const handleTablePress = (table: Table) => {
     console.log("🍽️ Table pressed:", table.name);
 
+    // Nếu đang có món trong giỏ hàng và chọn bàn khác
+    if (
+      orderItems.length > 0 &&
+      selectedTableForOrder &&
+      selectedTableForOrder.id !== table.id
+    ) {
+      Alert.alert(
+        "Chuyển bàn",
+        `Bạn có muốn chuyển ${orderItems.length} món từ ${selectedTableForOrder.name} sang ${table.name}?`,
+        [
+          { text: "Hủy", style: "cancel" },
+          {
+            text: "Chuyển bàn",
+            onPress: () => {
+              setSelectedTable(table);
+              setSelectedTableForOrder(table);
+              console.log(
+                `🔄 Moved ${orderItems.length} items from ${selectedTableForOrder.name} to ${table.name}`
+              );
+            },
+          },
+        ]
+      );
+      return;
+    }
+
     setSelectedTable(table);
     setSelectedTableForOrder(table);
 
     if (table.status === 0) {
-      // Bàn trống - chuyển thẳng sang tab Menu không hiển thị modal
-      setActiveTab(TabType.MENU);
-    } else {
-      // Bàn có khách - tạo OrderListItem từ order của bàn để truyền vào UnifiedOrderModal
-      if (table.order) {
-        const tableOrderListItem: OrderListItem = {
-          id: table.order.id,
-          code: table.order.code,
-          customerName: table.order.customer?.name || "Khách hàng",
-          customerPhone: table.order.customer?.phone || "",
-          customerAddress: "",
-          countProducts: table.order.products?.length || 0,
-          totalPrice:
-            table.order.products?.reduce(
-              (sum, p) => sum + (p.totalCost || 0),
-              0
-            ) || 0,
-          date: table.order.createDate,
-          exportWarehouse: false,
-        };
-        setSelectedOrder(tableOrderListItem);
+      // Bàn trống - chuyển thẳng sang tab Menu nếu chưa có món, hoặc hiển thị bottom sheet
+      if (orderItems.length === 0) {
+        setActiveTab(TabType.MENU);
       }
-      // Mở modal UnifiedOrderModal
-      setUnifiedOrderModalVisible(true);
+      // Bottom sheet sẽ tự động hiển thị nếu có món
+    } else {
+      // Bàn có khách - load order detail từ API
+      if (table.order?.id) {
+        loadTableOrder(table.order.id);
+      }
+      // Bottom sheet sẽ hiển thị thông tin bàn và đơn hàng
     }
   };
 
@@ -376,14 +420,8 @@ export default function HomeScreen() {
   const handleCreateOrder = (table?: Table) => {
     console.log(
       "➕ Create order for table:",
-      table?.name || selectedTableForOrder?.name
+      table?.name || selectedTableForOrder?.name || "No table selected"
     );
-
-    const targetTable = table || selectedTableForOrder;
-    if (!targetTable) {
-      Alert.alert("Lỗi", "Chưa chọn bàn");
-      return;
-    }
 
     // Kiểm tra xem có món nào trong giỏ hàng không
     if (orderItems.length === 0) {
@@ -393,32 +431,37 @@ export default function HomeScreen() {
       return;
     }
 
-    // Đóng UnifiedOrderModal nếu đang mở
-    setUnifiedOrderModalVisible(false);
-
-    // Mở màn hình tạo đơn hàng
-    setCreateOrderVisible(true);
+    // Logic tạo đơn hàng sẽ được thực hiện trong UnifiedOrderModal
+    // Không cần mở CreateOrderModal nữa
+    console.log("📋 Create order logic will be handled in UnifiedOrderModal");
   };
 
   const handleOrderCreated = (orderId: string) => {
     console.log("✅ Order created with ID:", orderId);
-
-    // Reload areas để cập nhật trạng thái bàn
-    if (activeTab === TabType.TABLES) {
-      loadAreas();
-    }
 
     // Clear selected table và order items
     setSelectedTableForOrder(null);
     setSelectedTable(null);
     setOrderItems([]);
     setUnifiedOrderModalVisible(false);
+
+    // Refresh areas ngay lập tức để cập nhật trạng thái bàn
+    console.log("🔄 Refreshing areas/tables data after order creation");
+    loadAreas();
+
+    // Chuyển về tab Đơn hàng với delay nhỏ để smooth transition
+    setTimeout(() => {
+      setActiveTab(TabType.ORDERS);
+      // Reload orders để hiển thị đơn hàng mới
+      onRefresh();
+    }, 300);
   };
 
   const handleClearOrder = () => {
     setOrderItems([]);
     setSelectedTableForOrder(null);
     setSelectedTable(null);
+    setSelectedOrder(undefined);
     console.log("🗑️ Order items cleared");
   };
 
@@ -431,8 +474,21 @@ export default function HomeScreen() {
 
   const handleOrderPress = (order: OrderListItem) => {
     console.log("📋 Order pressed:", order.code);
+
+    // Clear order items hiện tại để tránh conflict
+    setOrderItems([]);
+
+    // Set selected order để hiển thị trong OrderBottomSheet
     setSelectedOrder(order);
-    setUnifiedOrderModalVisible(true);
+
+    // Clear selectedTable và selectedTableForOrder vì đang xem đơn hàng riêng lẻ
+    setSelectedTable(null);
+    setSelectedTableForOrder(null);
+
+    // Không mở modal ngay, để user có thể chọn xem chi tiết hoặc thêm món
+    console.log(
+      "📋 Order loaded to bottom sheet. User can view details or add items."
+    );
   };
 
   const handleMenuPress = () => {
@@ -480,9 +536,154 @@ export default function HomeScreen() {
     await loadAreas();
   };
 
-  const handleAddToOrder = (product: Product) => {
+  const handleAddToOrder = async (product: Product) => {
     const currentPrice = product.priceAfterDiscount || product.price;
 
+    // Nếu có selectedOrder, thêm sản phẩm vào đơn hàng hiện có thông qua API
+    if (selectedOrder) {
+      try {
+        console.log(
+          "➕ Adding product to existing order:",
+          selectedOrder.code,
+          product.title
+        );
+
+        // Kiểm tra trạng thái đơn hàng trước khi thêm sản phẩm
+        const orderDetail = await ordersService.getOrderDetail(
+          selectedOrder.id
+        );
+        const canAddResult = ordersService.canAddProductToOrder(orderDetail);
+
+        if (!canAddResult.canAdd) {
+          Alert.alert(
+            "Không thể thêm sản phẩm",
+            canAddResult.reason || "Đơn hàng không hợp lệ"
+          );
+          return;
+        }
+
+        // Kiểm tra xem sản phẩm đã tồn tại trong đơn hàng chưa
+        const existingProduct = orderDetail.products?.find(
+          (p) => p.productName === product.title
+        );
+
+        // Chuẩn bị danh sách sản phẩm cập nhật
+        let updatedProducts;
+
+        if (existingProduct) {
+          // Nếu sản phẩm đã tồn tại, hỏi user có muốn tăng số lượng không
+          const shouldIncrease = await new Promise<boolean>((resolve) => {
+            Alert.alert(
+              "Sản phẩm đã tồn tại",
+              `${product.title} đã có trong đơn hàng (số lượng: ${existingProduct.quantity}). Bạn có muốn tăng số lượng không?`,
+              [
+                { text: "Hủy", style: "cancel", onPress: () => resolve(false) },
+                { text: "Tăng số lượng", onPress: () => resolve(true) },
+              ]
+            );
+          });
+
+          if (!shouldIncrease) return;
+
+          // Tăng số lượng sản phẩm hiện có
+          updatedProducts = orderDetail.products!.map((p) => ({
+            productId: p.id,
+            quantity:
+              p.productName === product.title ? p.quantity + 1 : p.quantity,
+            price: p.price,
+            priceIncludeVAT: p.priceIncludeVAT,
+            unitName: product.unitName || "Cái",
+            vat: 10,
+            name: p.productName || "Sản phẩm",
+            productCode: p.id.substring(0, 8) || "",
+          }));
+
+          console.log("📈 Increasing quantity for existing product");
+        } else {
+          // Nếu sản phẩm chưa tồn tại, thêm vào cuối danh sách
+          const existingProducts =
+            orderDetail.products?.map((p) => ({
+              productId: p.id,
+              quantity: p.quantity,
+              price: p.price,
+              priceIncludeVAT: p.priceIncludeVAT,
+              unitName: product.unitName || "Cái",
+              vat: 10,
+              name: p.productName || "Sản phẩm",
+              productCode: p.id.substring(0, 8) || "",
+            })) || [];
+
+          const newProduct = {
+            productId: product.id,
+            quantity: 1,
+            price: product.price,
+            priceIncludeVAT: currentPrice,
+            unitName: product.unitName || "Cái",
+            vat: 10,
+            name: product.title || "Sản phẩm mới",
+            productCode: product.code || "",
+          };
+
+          updatedProducts = [...existingProducts, newProduct];
+          console.log("➕ Adding new product to order");
+        }
+
+        if (existingProduct) {
+          // Nếu là tăng số lượng sản phẩm hiện có, sử dụng updateProductQuantityInOrder
+          console.log(
+            "📈 Updating quantity for existing product via updateProductQuantityInOrder"
+          );
+          await ordersService.updateProductQuantityInOrder(
+            selectedOrder.id,
+            existingProduct.id,
+            existingProduct.quantity + 1
+          );
+          console.log("✅ Product quantity updated successfully");
+        } else {
+          // Nếu là thêm sản phẩm mới, chỉ cần gọi addProductToOrder cho sản phẩm mới
+          console.log("➕ Adding only new product via addProductToOrder");
+          await ordersService.addProductToOrder(selectedOrder.id, {
+            productId: product.id,
+            quantity: 1,
+            price: product.price,
+            priceIncludeVAT: currentPrice,
+            unitName: product.unitName || "Cái",
+            vat: 10,
+            name: product.title, // Thêm tên sản phẩm từ trường title
+            productCode: product.code, // Sử dụng mã sản phẩm thực từ trường code
+          });
+        }
+
+        // Clear orderItems để tránh hiển thị view order mới song song
+        setOrderItems([]);
+        console.log("🗑️ Cleared orderItems to avoid duplicate display");
+
+        // const message = existingProduct
+        //   ? `Đã tăng số lượng ${product.title} lên ${
+        //       existingProduct.quantity + 1
+        //     }`
+        //   : `Đã thêm ${product.title} vào đơn hàng ${selectedOrder.code}`;
+
+        // Trigger reload orderDetail để cập nhật hiển thị ngay sau khi API thành công
+        setOrderDetailRefreshTrigger((prev) => prev + 1);
+        console.log("🔄 Triggered orderDetail refresh");
+
+        // Hiển thị một toast message để thông báo thêm sản phẩm thành công, toast sẽ mất sau 2s
+        showAddProductToast(product);
+
+        // Alert.alert("Thành công", message);
+        console.log("✅ Product updated in existing order successfully");
+      } catch (error: any) {
+        console.error("❌ Error adding product to existing order:", error);
+        Alert.alert(
+          "Lỗi",
+          error.message || "Không thể thêm sản phẩm vào đơn hàng"
+        );
+      }
+      return;
+    }
+
+    // Logic cũ: thêm vào orderItems cho đơn hàng mới
     setOrderItems((prevItems) => {
       const existingItem = prevItems.find((item) => item.id === product.id);
 
@@ -509,6 +710,17 @@ export default function HomeScreen() {
     });
 
     console.log("🛒 Added to order:", product.title);
+
+    // Nếu chưa có bàn được chọn, hiển thị thông báo gợi ý
+    // if (!selectedTableForOrder && orderItems.length === 0) {
+    //   setTimeout(() => {
+    //     Alert.alert(
+    //       "Gợi ý",
+    //       "Bạn có thể chọn bàn để gán đơn hàng này, hoặc tiếp tục thêm món và tạo đơn hàng không cần bàn.",
+    //       [{ text: "Đã hiểu" }]
+    //     );
+    //   }, 500);
+    // }
   };
 
   const handleUpdateQuantity = (itemId: string, newQuantity: number) => {
@@ -541,7 +753,24 @@ export default function HomeScreen() {
 
   const handleTabChange = (tab: TabType) => {
     // Keep selected table and order items persistent across tabs
+    console.log(
+      "🔄 Tab change:",
+      tab,
+      "| Selected table:",
+      selectedTable?.name,
+      "| Selected table for order:",
+      selectedTableForOrder?.name,
+      "| Order items:",
+      orderItems.length
+    );
+
     setActiveTab(tab);
+
+    // Refresh data khi chuyển về tab Tables để đảm bảo dữ liệu mới nhất
+    if (tab === TabType.TABLES) {
+      console.log("🔄 Refreshing areas when switching to Tables tab");
+      loadAreas();
+    }
   };
 
   // Xác định đơn hàng nào sẽ hiển thị trong UnifiedOrderModal
@@ -575,8 +804,12 @@ export default function HomeScreen() {
 
   const handleCloseUnifiedModal = () => {
     setUnifiedOrderModalVisible(false);
-    // Clear selectedOrder khi đóng modal
-    setSelectedOrder(undefined);
+
+    // Chỉ clear selectedOrder nếu đang ở tab Orders (không có selectedTable)
+    // Nếu đang ở tab Tables và chọn bàn, giữ selectedOrder để OrderBottomSheet hiển thị
+    if (!selectedTable) {
+      setSelectedOrder(undefined);
+    }
   };
 
   // Render các tab
@@ -596,29 +829,6 @@ export default function HomeScreen() {
       case TabType.MENU:
         return (
           <View style={styles.menuSection}>
-            {/* Category Selector */}
-            <TouchableOpacity
-              style={styles.categorySelector}
-              onPress={() => setCategoryBottomSheetVisible(true)}
-            >
-              <View style={styles.categorySelectorContent}>
-                <View style={styles.categorySelectorTextContainer}>
-                  <Ionicons
-                    name="fast-food-outline"
-                    size={20}
-                    color="#198754"
-                    style={styles.categorySelectorIcon}
-                  />
-                  <Text style={styles.categorySelectorText}>
-                    {selectedCategory
-                      ? selectedCategory.title
-                      : "Chọn danh mục"}
-                  </Text>
-                </View>
-                <Ionicons name="chevron-down" size={20} color="#333" />
-              </View>
-            </TouchableOpacity>
-
             {/* Product List */}
             <AllCategoriesProductList
               categories={categories}
@@ -633,6 +843,7 @@ export default function HomeScreen() {
                 quantity: item.quantity,
               }))}
               onUpdateQuantity={handleUpdateQuantity}
+              onCategoryPress={() => setCategoryBottomSheetVisible(true)}
             />
 
             {/* Category Bottom Sheet */}
@@ -747,12 +958,32 @@ export default function HomeScreen() {
 
         {/* Order Bottom Sheet */}
         <OrderBottomSheet
-          visible={orderItems.length > 0 || selectedTable !== null}
+          visible={
+            orderItems.length > 0 || // Có món trong giỏ hàng
+            selectedTable !== null || // Có bàn được chọn (bao gồm cả bàn trống)
+            selectedTableForOrder !== null || // Có bàn cho đơn hàng
+            selectedOrder !== undefined // Đang xem chi tiết đơn hàng
+          }
           orderItems={orderItems}
           selectedTable={selectedTable || selectedTableForOrder}
           totalAmount={totalAmount}
           onPress={handleBottomSheetPress}
-          isExistingOrder={selectedTable?.status === 1} // Bàn có khách
+          isExistingOrder={
+            (selectedTable || selectedTableForOrder)?.status === 1
+          } // Bàn có khách
+          mode={
+            selectedOrder
+              ? "view"
+              : (selectedTable || selectedTableForOrder)?.status === 1
+              ? "edit"
+              : "create"
+          }
+          orderCode={
+            selectedOrder?.code ||
+            (selectedTable || selectedTableForOrder)?.order?.code
+          }
+          selectedOrder={selectedOrder}
+          refreshTrigger={orderDetailRefreshTrigger}
         />
 
         {/* Unified Order Modal for Table and Order Creation */}
@@ -765,20 +996,12 @@ export default function HomeScreen() {
           onUpdateQuantity={handleUpdateQuantity}
           onRemoveItem={handleRemoveItem}
           onCreateOrder={handleCreateOrder}
+          onClearOrder={handleClearOrder}
+          onOrderCreated={handleOrderCreated}
           onRefresh={onRefresh}
           isExistingOrder={selectedTable?.status === 1}
           isPaid={modalIsPaid}
           title={modalTitle}
-        />
-
-        {/* Create Order Modal */}
-        <CreateOrderModal
-          visible={createOrderVisible}
-          table={selectedTableForOrder}
-          orderItems={orderItems}
-          onClose={() => setCreateOrderVisible(false)}
-          onOrderCreated={handleOrderCreated}
-          onClearOrder={handleClearOrder}
         />
       </View>
     </SafeAreaView>
