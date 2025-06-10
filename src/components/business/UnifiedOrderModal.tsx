@@ -95,19 +95,25 @@ const SwipeableOrderItem: React.FC<{
   };
 
   const handleSwipeGesture = (event: PanGestureHandlerGestureEvent) => {
-    const { translationX } = event.nativeEvent;
+    const { translationX, translationY } = event.nativeEvent;
 
     // Only allow swipe to the left (negative values) and if not paid
-    if (translationX <= 0 && !isPaid) {
+    // Also check if this is more of a horizontal swipe than vertical scroll
+    const isHorizontalSwipe = Math.abs(translationX) > Math.abs(translationY);
+
+    if (translationX <= 0 && !isPaid && isHorizontalSwipe) {
       translateX.setValue(translationX);
     }
   };
 
   const handleSwipeStateChange = (event: PanGestureHandlerStateChangeEvent) => {
-    const { translationX, state } = event.nativeEvent;
+    const { translationX, translationY, state } = event.nativeEvent;
 
     if (state === State.END && !isPaid) {
-      if (translationX < SWIPE_THRESHOLD) {
+      // Only process if this was primarily a horizontal gesture
+      const isHorizontalSwipe = Math.abs(translationX) > Math.abs(translationY);
+
+      if (isHorizontalSwipe && translationX < SWIPE_THRESHOLD) {
         // Animate to show delete button
         Animated.spring(translateX, {
           toValue: -80,
@@ -168,6 +174,9 @@ const SwipeableOrderItem: React.FC<{
         onGestureEvent={handleSwipeGesture}
         onHandlerStateChange={handleSwipeStateChange}
         enabled={!isPaid} // Disable swipe for paid orders
+        activeOffsetX={[-10, 10]} // Require at least 10px horizontal movement
+        failOffsetY={[-20, 20]} // Fail if vertical movement is more than 20px
+        shouldCancelWhenOutside={true}
       >
         <Animated.View
           style={[
@@ -852,7 +861,7 @@ export default function UnifiedOrderModal({
             </Text>
           </View>
         ) : (
-          <>
+          <View style={styles.contentContainer}>
             {/* Thông tin chi tiết đơn hàng (chỉ hiển thị khi xem từ tab đơn hàng) */}
             {selectedOrder && renderOrderDetails()}
 
@@ -864,7 +873,11 @@ export default function UnifiedOrderModal({
                 keyExtractor={(item) => item.id}
                 style={styles.itemsList}
                 contentContainerStyle={styles.itemsListContent}
-                showsVerticalScrollIndicator={false}
+                showsVerticalScrollIndicator={true}
+                bounces={true}
+                scrollEnabled={true}
+                nestedScrollEnabled={true}
+                removeClippedSubviews={false}
               />
             ) : (
               <View style={styles.emptyState}>
@@ -908,7 +921,7 @@ export default function UnifiedOrderModal({
             >
               {renderActionButtons()}
             </View>
-          </>
+          </View>
         )}
 
         {/* Payment Modal */}
@@ -936,6 +949,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#f8f9fa",
+  },
+  contentContainer: {
+    flex: 1,
   },
   header: {
     flexDirection: "row",
@@ -1028,6 +1044,7 @@ const styles = StyleSheet.create({
   itemsListContent: {
     paddingHorizontal: 20,
     paddingVertical: 16,
+    flexGrow: 1,
   },
   // Swipeable item styles
   swipeContainer: {

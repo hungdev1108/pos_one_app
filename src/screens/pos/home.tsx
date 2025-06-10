@@ -375,31 +375,66 @@ export default function HomeScreen() {
       selectedTableForOrder &&
       selectedTableForOrder.id !== table.id
     ) {
-      Alert.alert(
-        "Chuyển bàn",
-        `Bạn có muốn chuyển ${orderItems.length} món từ ${selectedTableForOrder.name} sang ${table.name}?`,
-        [
-          { text: "Hủy", style: "cancel" },
-          {
-            text: "Chuyển bàn",
-            onPress: () => {
-              setSelectedTable(table);
-              setSelectedTableForOrder(table);
-              console.log(
-                `🔄 Moved ${orderItems.length} items from ${selectedTableForOrder.name} to ${table.name}`
-              );
+      // Kiểm tra nếu bàn đích đã có order (status = 1)
+      if (table.status === 1) {
+        // Bàn đã có order - clear món hiện tại và chuyển sang bàn mới
+        Alert.alert(
+          "Chuyển sang bàn đã có đơn hàng",
+          `Bàn ${table.name} đã có đơn hàng. Các món đang chọn sẽ bị xóa và hiển thị thông tin đơn hàng của bàn này.`,
+          [
+            { text: "Hủy", style: "cancel" },
+            {
+              text: "Chuyển sang bàn",
+              onPress: () => {
+                // Clear order items hiện tại
+                setOrderItems([]);
+                // Chọn bàn mới
+                setSelectedTable(table);
+                setSelectedTableForOrder(table);
+                // Load thông tin đơn hàng của bàn mới
+                if (table.order?.id) {
+                  loadTableOrder(table.order.id);
+                }
+                console.log(
+                  `🔄 Switched to occupied table ${table.name}, cleared current order items`
+                );
+              },
             },
-          },
-        ]
-      );
-      return;
+          ]
+        );
+        return;
+      } else {
+        // Bàn trống - hiển thị thông báo chuyển bàn trống
+        Alert.alert(
+          "Chuyển bàn",
+          `Bạn có muốn chuyển ${orderItems.length} món từ ${selectedTableForOrder.name} sang ${table.name}?`,
+          [
+            { text: "Hủy", style: "cancel" },
+            {
+              text: "Chuyển bàn",
+              onPress: () => {
+                setSelectedTable(table);
+                setSelectedTableForOrder(table);
+                // Clear selectedOrder khi chuyển sang bàn trống
+                setSelectedOrder(undefined);
+                console.log(
+                  `🔄 Moved ${orderItems.length} items from ${selectedTableForOrder.name} to ${table.name}`
+                );
+              },
+            },
+          ]
+        );
+        return;
+      }
     }
 
     setSelectedTable(table);
     setSelectedTableForOrder(table);
 
     if (table.status === 0) {
-      // Bàn trống - chuyển thẳng sang tab Menu nếu chưa có món, hoặc hiển thị bottom sheet
+      // Bàn trống - clear selectedOrder để không hiển thị thông tin đơn hàng cũ
+      setSelectedOrder(undefined);
+      // Chuyển thẳng sang tab Menu nếu chưa có món, hoặc hiển thị bottom sheet
       if (orderItems.length === 0) {
         setActiveTab(TabType.MENU);
       }
