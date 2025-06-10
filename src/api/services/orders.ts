@@ -90,7 +90,7 @@ class OrdersService {
         { params }
       );
 
-      console.log("🔄 New orders response:", response);
+      // console.log("🔄 New orders response:", response);
 
       // Trường hợp 1: Phản hồi trực tiếp là OrdersListResponse
       if (response && response.items && Array.isArray(response.items)) {

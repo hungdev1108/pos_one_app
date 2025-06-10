@@ -67,7 +67,7 @@ export const OrderActionButtons: React.FC<OrderActionButtonsProps> = ({
   const renderCreateModeButtons = () => {
     const buttons = [];
 
-    // Buttons cho Create Mode
+    // Buttons cho Create Mode - theo thứ tự mới: Hủy, In chế biến, Thanh toán
     buttons.push(
       renderButton(
         "cancel",
@@ -79,16 +79,23 @@ export const OrderActionButtons: React.FC<OrderActionButtonsProps> = ({
     );
 
     buttons.push(
-      renderButton("save", "save", "Lưu", "save", styles.primaryButton)
-    );
-
-    buttons.push(
       renderButton(
         "printKitchen",
         "print_kitchen",
         "In chế biến",
         "restaurant",
         styles.secondaryButton
+      )
+    );
+
+    // Đổi nút "Lưu" thành "Thanh toán"
+    buttons.push(
+      renderButton(
+        "save",
+        "payment_create",
+        "Thanh toán",
+        "card",
+        styles.primaryButton
       )
     );
 

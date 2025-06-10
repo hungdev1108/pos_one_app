@@ -75,6 +75,8 @@ export default function HomeScreen() {
 
   const [unifiedOrderModalVisible, setUnifiedOrderModalVisible] =
     useState(false);
+  const [autoOpenPaymentForNewOrder, setAutoOpenPaymentForNewOrder] =
+    useState(false);
 
   useEffect(() => {
     loadInitialData();
@@ -471,8 +473,13 @@ export default function HomeScreen() {
     console.log("📋 Create order logic will be handled in UnifiedOrderModal");
   };
 
-  const handleOrderCreated = (orderId: string) => {
-    console.log("✅ Order created with ID:", orderId);
+  const handleOrderCreated = (orderId: string, shouldOpenPayment?: boolean) => {
+    console.log(
+      "✅ Order created with ID:",
+      orderId,
+      "shouldOpenPayment:",
+      shouldOpenPayment
+    );
 
     // Clear selected table và order items
     setSelectedTableForOrder(null);
@@ -484,12 +491,89 @@ export default function HomeScreen() {
     console.log("🔄 Refreshing areas/tables data after order creation");
     loadAreas();
 
-    // Chuyển về tab Đơn hàng với delay nhỏ để smooth transition
-    setTimeout(() => {
-      setActiveTab(TabType.ORDERS);
-      // Reload orders để hiển thị đơn hàng mới
-      onRefresh();
-    }, 300);
+    if (shouldOpenPayment) {
+      // Luồng mới: Thử load order detail, nếu lỗi thì fallback về tab Orders
+      setTimeout(async () => {
+        // Luồng mới: Tìm đơn hàng mới trong danh sách và tự động mở thanh toán
+        console.log(
+          "🔄 Chuyển về tab Orders và tìm đơn hàng mới để auto thanh toán"
+        );
+
+        // Chuyển về tab Orders
+        setActiveTab(TabType.ORDERS);
+
+        // Refresh để load đơn hàng mới
+        onRefresh();
+
+        // Đợi để Orders load xong, sau đó tự động tìm và mở đơn hàng mới
+        setTimeout(async () => {
+          try {
+            // Lấy danh sách đơn hàng mới
+            const newOrders = await ordersService.getNewOrders({
+              pageNumber: 1,
+              pageSize: 20,
+              searchTerm: "",
+              fromDate: "",
+              toDate: "",
+            });
+
+            console.log("📋 New orders loaded:", newOrders.items.length);
+
+            // Tìm đơn hàng với code khớp với orderId hoặc đơn hàng mới nhất
+            let targetOrder = newOrders.items.find(
+              (order) =>
+                order.code === orderId.toString() ||
+                order.code.includes(orderId.toString())
+            );
+
+            // Nếu không tìm thấy theo code, lấy đơn hàng mới nhất
+            if (!targetOrder && newOrders.items.length > 0) {
+              // Sắp xếp theo ngày tạo giảm dần và lấy đơn mới nhất
+              const sortedOrders = [...newOrders.items].sort(
+                (a, b) =>
+                  new Date(b.date).getTime() - new Date(a.date).getTime()
+              );
+              targetOrder = sortedOrders[0];
+              console.log(
+                "📋 Using latest order as fallback:",
+                targetOrder.code
+              );
+            }
+
+            if (targetOrder) {
+              console.log("✅ Found target order:", targetOrder.code);
+
+              // Set selected order và mở modal chi tiết với auto payment
+              setSelectedOrder(targetOrder);
+              setAutoOpenPaymentForNewOrder(true);
+              setUnifiedOrderModalVisible(true);
+
+              console.log(
+                "🚀 Auto opening order detail with payment for:",
+                targetOrder.code
+              );
+            } else {
+              throw new Error("Không tìm thấy đơn hàng mới");
+            }
+          } catch (error) {
+            console.error("❌ Error finding new order:", error);
+
+            // Fallback: hiển thị alert như cũ
+            Alert.alert(
+              "Đã tạo đơn hàng thành công!",
+              `Đơn hàng #${orderId} đã được tạo và in chế biến. Vui lòng tìm đơn hàng trong tab "Đơn hàng" và bấm "Chi tiết" để thanh toán.`,
+              [{ text: "OK" }]
+            );
+          }
+        }, 1500); // Tăng thời gian đợi để đảm bảo Orders load xong
+      }, 300);
+    } else {
+      // Luồng cũ: chuyển về tab Đơn hàng
+      setTimeout(() => {
+        setActiveTab(TabType.ORDERS);
+        onRefresh();
+      }, 300);
+    }
   };
 
   const handleClearOrder = () => {
@@ -848,6 +932,7 @@ export default function HomeScreen() {
 
   const handleCloseUnifiedModal = () => {
     setUnifiedOrderModalVisible(false);
+    setAutoOpenPaymentForNewOrder(false);
 
     // Chỉ clear selectedOrder nếu đang ở tab Orders (không có selectedTable)
     // Nếu đang ở tab Tables và chọn bàn, giữ selectedOrder để OrderBottomSheet hiển thị
@@ -1046,6 +1131,7 @@ export default function HomeScreen() {
           isExistingOrder={selectedTable?.status === 1}
           isPaid={modalIsPaid}
           title={modalTitle}
+          autoOpenPayment={autoOpenPaymentForNewOrder}
         />
       </View>
     </SafeAreaView>

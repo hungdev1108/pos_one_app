@@ -199,7 +199,7 @@ export class WarehouseService {
 
       const response = await apiClient.get<any>(`/api/warehouses/products?${params.toString()}`);
       
-      console.log('📦 Products response:', response);
+      // console.log('📦 Products response:', response);
       
       // Kiểm tra các cấu trúc response có thể có
       if (response && response.data && Array.isArray(response.data)) {
