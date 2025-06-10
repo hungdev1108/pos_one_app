@@ -52,6 +52,7 @@ export default function PaymentModal({
   const [customerPaid, setCustomerPaid] = useState<string>("");
   const [voucher, setVoucher] = useState<string>("");
   const [selectedBank, setSelectedBank] = useState<string>("");
+  const [billCounts, setBillCounts] = useState<{ [key: number]: number }>({});
 
   // Reset state when modal opens
   useEffect(() => {
@@ -59,6 +60,7 @@ export default function PaymentModal({
       setCustomerPaid("");
       setVoucher("");
       setSelectedBank("");
+      setBillCounts({});
     }
   }, [visible]);
 
@@ -75,10 +77,45 @@ export default function PaymentModal({
   };
 
   const customerPaidAmount = parseNumber(customerPaid);
-  const changeAmount = customerPaidAmount - totalAmount;
+  const changeAmount =
+    customerPaid.trim() === "" ? 0 : customerPaidAmount - totalAmount;
 
-  const handleAmountSuggestion = (amount: number) => {
-    setCustomerPaid(formatNumber(amount));
+  // Calculate total bills count
+  const totalBillsCount = Object.values(billCounts).reduce(
+    (sum, count) => sum + count,
+    0
+  );
+
+  const handleAmountSuggestion = (
+    amount: number,
+    isExactPayment: boolean = false
+  ) => {
+    if (isExactPayment) {
+      // For exact payment: clear all bills and set exact amount
+      setBillCounts({});
+      setCustomerPaid(formatNumber(amount));
+    } else {
+      // For denomination selection: add to bill counts and calculate total
+      setBillCounts((prev) => ({
+        ...prev,
+        [amount]: (prev[amount] || 0) + 1,
+      }));
+
+      // Calculate new total amount from bills
+      const newBillCounts = {
+        ...billCounts,
+        [amount]: (billCounts[amount] || 0) + 1,
+      };
+
+      const totalFromBills = Object.entries(newBillCounts).reduce(
+        (sum, [denomination, count]) => {
+          return sum + parseInt(denomination) * count;
+        },
+        0
+      );
+
+      setCustomerPaid(formatNumber(totalFromBills));
+    }
   };
 
   const handleCustomerPaidChange = (text: string) => {
@@ -89,10 +126,13 @@ export default function PaymentModal({
     } else {
       setCustomerPaid("");
     }
+    // Clear bill counts when manually typing
+    setBillCounts({});
   };
 
   const handleClearInput = () => {
     setCustomerPaid("");
+    setBillCounts({});
   };
 
   const handleVoucherCheck = () => {
@@ -108,13 +148,8 @@ export default function PaymentModal({
   };
 
   const handlePayment = () => {
-    if (customerPaidAmount <= 0) {
-      Alert.alert("Lỗi", "Vui lòng nhập số tiền khách trả.");
-      return;
-    }
-
-    if (!selectedBank) {
-      Alert.alert("Lỗi", "Vui lòng chọn ngân hàng thanh toán.");
+    if (customerPaidAmount < totalAmount) {
+      Alert.alert("Lỗi", "Số tiền khách trả phải đủ để thanh toán.");
       return;
     }
 
@@ -123,7 +158,7 @@ export default function PaymentModal({
       customerPaid: customerPaidAmount,
       change: changeAmount,
       paymentMethod: "bank",
-      bankCode: selectedBank,
+      bankCode: selectedBank || "cash",
       voucher: voucher.trim() || undefined,
     };
 
@@ -131,35 +166,36 @@ export default function PaymentModal({
   };
 
   const renderSuggestedAmounts = () => {
-    const amounts = [totalAmount, ...SUGGESTED_AMOUNTS];
-
     return (
       <View style={styles.suggestedAmountsContainer}>
-        <Text style={styles.sectionTitle}>Gợi ý tiên khách đưa</Text>
+        <Text style={styles.sectionTitle}>Gợi ý tiền khách đưa</Text>
+
+        {/* First row: Exact payment button */}
+        <View style={styles.exactPaymentRow}>
+          <TouchableOpacity
+            style={styles.exactPaymentButton}
+            onPress={() => handleAmountSuggestion(totalAmount, true)}
+          >
+            <Text style={styles.exactPaymentLabel}>
+              Khách đưa đúng số tiền{" "}
+              <Text style={styles.exactPaymentAmount}>
+                {formatNumber(totalAmount)}
+              </Text>
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Grid for suggested amounts */}
         <View style={styles.suggestedAmountsGrid}>
-          {amounts.map((amount, index) => (
+          {SUGGESTED_AMOUNTS.map((amount, index) => (
             <TouchableOpacity
               key={index}
-              style={[
-                styles.suggestedAmountButton,
-                index === 0 && styles.totalAmountButton,
-              ]}
+              style={styles.suggestedAmountButton}
               onPress={() => handleAmountSuggestion(amount)}
             >
-              {index === 0 ? (
-                <View style={styles.exactPaymentContainer}>
-                  <Text style={styles.exactPaymentLabel}>
-                    Khách đưa đúng số tiền{" "}
-                    <Text style={styles.exactPaymentAmount}>
-                      {formatNumber(amount)}
-                    </Text>
-                  </Text>
-                </View>
-              ) : (
-                <Text style={styles.suggestedAmountText}>
-                  {formatNumber(amount)}
-                </Text>
-              )}
+              <Text style={styles.suggestedAmountText}>
+                {formatNumber(amount)}
+              </Text>
             </TouchableOpacity>
           ))}
         </View>
@@ -167,41 +203,75 @@ export default function PaymentModal({
     );
   };
 
-  const renderBankOptions = () => {
-    const selectedBankName = BANK_OPTIONS.find(
-      (bank) => bank.code === selectedBank
-    )?.name;
-
+  const renderBankOptionsAndSuggestedAmounts = () => {
     return (
       <View style={styles.bankOptionsContainer}>
         <View style={styles.bankSectionHeader}>
-          <Text style={styles.sectionTitle}>Chọn nhà thanh toán</Text>
-          {selectedBankName && (
+          <Text style={styles.sectionTitle}>Chọn thanh toán</Text>
+          {totalBillsCount > 0 && (
             <View style={styles.selectedBankIndicator}>
-              <Ionicons name="checkmark-circle" size={16} color="#198754" />
-              <Text style={styles.selectedBankText}>{selectedBankName}</Text>
+              <Ionicons name="receipt-outline" size={16} color="#198754" />
+              <Text style={styles.selectedBankText}>
+                Tổng số tờ: {totalBillsCount}
+              </Text>
             </View>
           )}
         </View>
-        <View style={styles.bankGrid}>
-          {BANK_OPTIONS.map((bank) => (
-            <TouchableOpacity
-              key={bank.code}
-              style={[
-                styles.bankButton,
-                { backgroundColor: bank.color },
-                selectedBank === bank.code && styles.selectedBankButton,
-              ]}
-              onPress={() => setSelectedBank(bank.code)}
-            >
-              <Text style={styles.bankButtonText}>{bank.name}</Text>
-              {/* {selectedBank === bank.code && (
-                <View style={styles.checkmarkOverlay}>
-                  <Ionicons name="checkmark-circle" size={20} color="#fff" />
-                </View>
-              )} */}
-            </TouchableOpacity>
-          ))}
+
+        {/* Container for bank options and suggested amounts */}
+        <View style={styles.bankAndSuggestedAmountsContainer}>
+          {/* First column: Bank options */}
+          <View style={styles.bankColumn}>
+            {BANK_OPTIONS.map((bank) => (
+              <TouchableOpacity
+                key={bank.code}
+                style={[
+                  styles.bankButton,
+                  { backgroundColor: bank.color },
+                  selectedBank === bank.code && styles.selectedBankButton,
+                ]}
+                onPress={() => setSelectedBank(bank.code)}
+              >
+                <Text style={styles.bankButtonText}>{bank.name}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+          {/* Second column: suggested amounts */}
+          <View style={styles.suggestedAmountsColumn}>
+            {/* Grid for suggested amounts */}
+            <View style={styles.exactPaymentRow}>
+              <TouchableOpacity
+                style={styles.exactPaymentButton}
+                onPress={() => handleAmountSuggestion(totalAmount, true)}
+              >
+                <Text style={styles.exactPaymentLabel}>
+                  <Text style={styles.exactPaymentAmount}>
+                    {formatNumber(totalAmount)}
+                  </Text>
+                </Text>
+              </TouchableOpacity>
+            </View>
+            <View style={styles.suggestedAmountsGrid}>
+              {SUGGESTED_AMOUNTS.map((amount, index) => (
+                <TouchableOpacity
+                  onPress={() => handleAmountSuggestion(amount)}
+                  key={index}
+                  style={styles.suggestedAmountButton}
+                >
+                  <Text style={styles.suggestedAmountText}>
+                    {formatNumber(amount)}
+                  </Text>
+                  {billCounts[amount] && (
+                    <View style={styles.billCountBadge}>
+                      <Text style={styles.billCountText}>
+                        {billCounts[amount]}
+                      </Text>
+                    </View>
+                  )}
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
         </View>
       </View>
     );
@@ -307,10 +377,10 @@ export default function PaymentModal({
           </View>
 
           {/* Bank Options */}
-          {renderBankOptions()}
+          {renderBankOptionsAndSuggestedAmounts()}
 
           {/* Suggested Amounts */}
-          {renderSuggestedAmounts()}
+          {/* {renderSuggestedAmounts()} */}
         </ScrollView>
 
         {/* Footer */}
@@ -322,11 +392,10 @@ export default function PaymentModal({
           <TouchableOpacity
             style={[
               styles.paymentButton,
-              (customerPaidAmount <= 0 || !selectedBank) &&
-                styles.paymentButtonDisabled,
+              customerPaidAmount < totalAmount && styles.paymentButtonDisabled,
             ]}
             onPress={handlePayment}
-            disabled={customerPaidAmount <= 0 || !selectedBank}
+            disabled={customerPaidAmount < totalAmount}
           >
             <Text style={styles.paymentButtonText}>Thanh toán</Text>
           </TouchableOpacity>
@@ -488,27 +557,47 @@ const styles = StyleSheet.create({
     color: "#000",
     marginBottom: 16,
   },
-  suggestedAmountsGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 12,
+  exactPaymentRow: {
+    // marginBottom: 16,
   },
-  suggestedAmountButton: {
-    // backgroundColor: "#f8f9fa",
+  exactPaymentButton: {
     borderWidth: 1,
     borderColor: "#dee2e6",
     borderRadius: 8,
     paddingHorizontal: 16,
     paddingVertical: 12,
-    minWidth: (SCREEN_WIDTH - 80) / 3 - 8,
     alignItems: "center",
   },
-  totalAmountButton: {
-    // backgroundColor: "#198754",
-    color: "#5470ff",
+  suggestedAmountsGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  suggestedAmountButton: {
+    borderWidth: 1,
     borderColor: "#dee2e6",
-    width: "100%",
-    // marginBottom: 8,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    width: "48%",
+    alignItems: "center",
+    position: "relative",
+  },
+  billCountBadge: {
+    position: "absolute",
+    top: -5,
+    right: -5,
+    backgroundColor: "#dc3545",
+    borderRadius: 10,
+    minWidth: 20,
+    height: 20,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  billCountText: {
+    color: "#fff",
+    fontSize: 12,
+    fontWeight: "bold",
   },
   suggestedAmountText: {
     fontSize: 14,
@@ -528,10 +617,10 @@ const styles = StyleSheet.create({
     color: "#5470ff",
     fontWeight: "600",
     textAlign: "center",
-    lineHeight: 18,
+    // lineHeight: 18,
   },
   exactPaymentAmount: {
-    fontSize: 14,
+    fontSize: 20,
     color: "#5470ff",
     fontWeight: "bold",
   },
@@ -540,7 +629,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 20,
     marginTop: 8,
-    marginBottom: 8,
+    marginBottom: 16,
   },
   bankSectionHeader: {
     flexDirection: "row",
@@ -563,31 +652,26 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: "#198754",
   },
-  bankGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
+  bankColumn: {
+    // flex: 1,
+    flexDirection: "column",
+    gap: 10,
+  },
+  suggestedAmountsColumn: {
+    flex: 1,
+    flexDirection: "column",
+    gap: 10,
   },
   bankButton: {
-    paddingHorizontal: 16,
+    paddingHorizontal: 5,
     paddingVertical: 12,
     borderRadius: 8,
-    minWidth: (SCREEN_WIDTH - 80) / 3 - 8,
+    // width: "100%",
     alignItems: "center",
     borderWidth: 2,
     borderColor: "transparent",
   },
   selectedBankButton: {
-    // borderColor: "#fff",
-    // borderWidth: 1,
-    // elevation: 1,
-    // shadowColor: "#000",
-    // shadowOffset: {
-    //   width: 0,
-    //   height: 0,
-    // },
-    // shadowOpacity: 0.3,
-    // shadowRadius: 4,
     transform: [{ scale: 1.01 }],
   },
   bankButtonText: {
@@ -617,7 +701,7 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingVertical: 16,
     borderRadius: 8,
-    backgroundColor: "#6c757d",
+    backgroundColor: "#777",
     alignItems: "center",
   },
   cancelButtonText: {
@@ -650,5 +734,10 @@ const styles = StyleSheet.create({
     right: 10,
     bottom: 15,
     zIndex: 1,
+  },
+  bankAndSuggestedAmountsContainer: {
+    flexDirection: "row",
+    gap: 16,
+    flex: 1,
   },
 });

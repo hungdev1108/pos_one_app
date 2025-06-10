@@ -759,6 +759,15 @@ export default function HomeScreen() {
   };
 
   const handleUpdateQuantity = (itemId: string, newQuantity: number) => {
+    console.log("🏠 HomeScreen handleUpdateQuantity called with:", {
+      itemId,
+      newQuantity,
+    });
+    console.log(
+      "🏠 Current selectedOrder:",
+      selectedOrder ? selectedOrder.id : "none"
+    );
+
     if (newQuantity <= 0) {
       handleRemoveItem(itemId);
     } else {

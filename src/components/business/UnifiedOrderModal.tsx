@@ -64,7 +64,7 @@ interface UnifiedOrderModalProps {
   orderItems: OrderItem[];
   selectedTable?: Table | null;
   onClose: () => void;
-  onUpdateQuantity?: (itemId: string, newQuantity: number) => void;
+  onUpdateQuantity?: (itemId: string, value: number) => void;
   onRemoveItem?: (itemId: string) => void;
   onCreateOrder?: () => void;
   onPrint?: () => void;
@@ -83,11 +83,19 @@ const SWIPE_THRESHOLD = -SCREEN_WIDTH * 0.3; // 30% of screen width
 // Swipeable Order Item Component
 const SwipeableOrderItem: React.FC<{
   item: OrderItem;
-  onUpdateQuantity?: (itemId: string, newQuantity: number) => void;
+  onUpdateQuantity?: (itemId: string, value: number) => void;
   onRemoveItem?: (itemId: string) => void;
   isPaid: boolean;
   order?: any;
-}> = ({ item, onUpdateQuantity, onRemoveItem, isPaid, order }) => {
+  isExistingOrder?: boolean;
+}> = ({
+  item,
+  onUpdateQuantity,
+  onRemoveItem,
+  isPaid,
+  order,
+  isExistingOrder = false,
+}) => {
   const translateX = useRef(new Animated.Value(0)).current;
 
   const formatPrice = (price: number): string => {
@@ -170,44 +178,49 @@ const SwipeableOrderItem: React.FC<{
       )}
 
       {/* Main Item Content */}
-      <PanGestureHandler
-        onGestureEvent={handleSwipeGesture}
-        onHandlerStateChange={handleSwipeStateChange}
-        enabled={!isPaid} // Disable swipe for paid orders
-        activeOffsetX={[-10, 10]} // Require at least 10px horizontal movement
-        failOffsetY={[-20, 20]} // Fail if vertical movement is more than 20px
-        shouldCancelWhenOutside={true}
+      <Animated.View
+        style={[
+          styles.orderItem,
+          {
+            transform: [{ translateX }],
+          },
+        ]}
       >
-        <Animated.View
-          style={[
-            styles.orderItem,
-            {
-              transform: [{ translateX }],
-            },
-          ]}
-        >
-          <TouchableOpacity style={styles.itemContent} onPress={resetSwipe}>
+        <View style={styles.itemContent}>
+          {/* Swipeable area - chỉ cho phần text */}
+          <PanGestureHandler
+            onGestureEvent={handleSwipeGesture}
+            onHandlerStateChange={handleSwipeStateChange}
+            enabled={!isPaid}
+            activeOffsetX={[-15, 15]}
+            failOffsetY={[-30, 30]}
+            shouldCancelWhenOutside={true}
+          >
             <View style={styles.itemInfo}>
-              <Text style={styles.itemTitle} numberOfLines={2}>
-                {item.title}
-              </Text>
-              <Text style={styles.itemPrice}>{formatPrice(item.price)}</Text>
+              <TouchableOpacity onPress={resetSwipe} activeOpacity={0.7}>
+                <Text style={styles.itemTitle} numberOfLines={2}>
+                  {item.title}
+                </Text>
+                <Text style={styles.itemPrice}>{formatPrice(item.price)}</Text>
+              </TouchableOpacity>
             </View>
+          </PanGestureHandler>
 
-            <ProductQuantityControls
-              item={item}
-              order={order}
-              onUpdateQuantity={onUpdateQuantity}
-              onRemoveItem={onRemoveItem}
-              isPaid={isPaid}
-            />
+          {/* Controls area - no gesture */}
+          <ProductQuantityControls
+            item={item}
+            order={order}
+            onUpdateQuantity={onUpdateQuantity}
+            onRemoveItem={onRemoveItem}
+            isPaid={isPaid}
+            mode={isExistingOrder ? "change" : "absolute"}
+          />
 
-            <View style={styles.itemTotalContainer}>
-              <Text style={styles.itemTotal}>{formatPrice(itemTotal)}</Text>
-            </View>
-          </TouchableOpacity>
-        </Animated.View>
-      </PanGestureHandler>
+          <View style={styles.itemTotalContainer}>
+            <Text style={styles.itemTotal}>{formatPrice(itemTotal)}</Text>
+          </View>
+        </View>
+      </Animated.View>
     </View>
   );
 };
@@ -271,11 +284,27 @@ export default function UnifiedOrderModal({
   }, [shouldResetCustomerInfo]);
 
   const loadOrderDetail = async () => {
-    if (!selectedOrder) return;
+    if (!selectedOrder) {
+      console.log("⚠️ No selected order to load details");
+      return;
+    }
 
     try {
       setLoading(true);
+      console.log("🔄 Loading order detail for:", selectedOrder.id);
+
       const detail = await ordersService.getOrderDetail(selectedOrder.id);
+      console.log("✅ Order detail loaded:", detail);
+      console.log(
+        "📊 Products in reloaded order:",
+        detail.products?.map((p) => ({
+          id: p.id,
+          name: p.productName,
+          quantity: p.quantity,
+        }))
+      );
+
+      setOrderDetail(detail);
 
       // Bổ sung các trường thiếu nếu cần
       if (detail) {
@@ -305,8 +334,6 @@ export default function UnifiedOrderModal({
             }
           });
         }
-
-        setOrderDetail(detail);
 
         // Convert OrderDetail.products thành OrderItem[] để hiển thị
         if (detail.products && detail.products.length > 0) {
@@ -455,13 +482,33 @@ export default function UnifiedOrderModal({
     // Determine if order is paid based on status
     const isOrderPaid = selectedOrder ? orderStatus === "paid" : isPaid;
 
+    // Xác định handlers phù hợp dựa vào loại đơn hàng
+    const updateQuantityHandler = selectedOrder
+      ? handleUpdateQuantityExistingOrder
+      : onUpdateQuantity;
+
+    const removeItemHandler = selectedOrder
+      ? handleRemoveItemExistingOrder
+      : onRemoveItem;
+
+    console.log("🔍 renderOrderItem - Handler selection:", {
+      hasSelectedOrder: !!selectedOrder,
+      updateQuantityHandler: selectedOrder
+        ? "handleUpdateQuantityExistingOrder"
+        : "onUpdateQuantity",
+      removeItemHandler: selectedOrder
+        ? "handleRemoveItemExistingOrder"
+        : "onRemoveItem",
+    });
+
     return (
       <SwipeableOrderItem
         item={item}
-        onUpdateQuantity={onUpdateQuantity}
-        onRemoveItem={onRemoveItem}
+        onUpdateQuantity={updateQuantityHandler}
+        onRemoveItem={removeItemHandler}
         isPaid={isOrderPaid}
         order={orderDetail || selectedOrder}
+        isExistingOrder={!!selectedOrder}
       />
     );
   };
@@ -523,6 +570,130 @@ export default function UnifiedOrderModal({
 
   const handleCustomerInfoSave = (newCustomerInfo: CustomerInfo) => {
     setCustomerInfo(newCustomerInfo);
+  };
+
+  // Xử lý tăng giảm số lượng cho đơn hàng hiện có
+  const handleUpdateQuantityExistingOrder = async (
+    itemId: string,
+    value: number
+  ) => {
+    console.log("🎯 handleUpdateQuantityExistingOrder called with:", {
+      itemId,
+      value,
+      orderId: selectedOrder?.id,
+      orderCode: selectedOrder?.code,
+      tableId: selectedTable?.id,
+      tableName: selectedTable?.name,
+      tableStatus: selectedTable?.status,
+    });
+
+    if (!selectedOrder || !orderDetail) {
+      console.log("⚠️ No selected order or order detail for quantity update");
+      return;
+    }
+
+    try {
+      setLoading(true);
+
+      // Kiểm tra điều kiện có thể cập nhật không
+      const canAddResult = ordersService.canAddProductToOrder(orderDetail);
+      if (!canAddResult.canAdd) {
+        Alert.alert(
+          "Không thể cập nhật",
+          canAddResult.reason || "Đơn hàng không hợp lệ"
+        );
+        return;
+      }
+
+      // Kiểm tra điều kiện cụ thể
+      if (orderDetail.receiveDate) {
+        Alert.alert(
+          "Không thể cập nhật",
+          "Đơn hàng đã thanh toán, không thể thay đổi số lượng"
+        );
+        return;
+      }
+
+      if (orderDetail.sendDate && orderDetail.tuDongXuatKhoBanHang === 1) {
+        Alert.alert(
+          "Không thể cập nhật",
+          "Đơn hàng đã tạm tính và tự động xuất kho, không thể thay đổi"
+        );
+        return;
+      }
+
+      console.log(
+        `📈 Updating quantity for item ${itemId} with value: ${value} (treated as changeAmount for existing orders)`
+      );
+
+      // Với đơn hàng có sẵn, value sẽ là changeAmount (-1, +1)
+      const changeAmount = value;
+      await ordersService.updateProductQuantityInOrder(
+        selectedOrder.id,
+        itemId,
+        changeAmount
+      );
+      console.log("✅ Product quantity updated");
+
+      // Reload order detail để cập nhật UI
+      await loadOrderDetail();
+
+      // Trigger refresh ở HomeScreen để cập nhật dữ liệu
+      onRefresh?.();
+    } catch (error: any) {
+      console.error("❌ Error updating quantity:", error);
+      Alert.alert(
+        "Lỗi",
+        error.message || "Không thể cập nhật số lượng sản phẩm"
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRemoveItemExistingOrder = async (itemId: string) => {
+    if (!selectedOrder) {
+      console.log("⚠️ No selected order for item removal");
+      return;
+    }
+
+    try {
+      setLoading(true);
+
+      // Kiểm tra điều kiện có thể xóa không
+      if (orderDetail?.receiveDate) {
+        Alert.alert(
+          "Không thể xóa",
+          "Đơn hàng đã thanh toán, không thể xóa món"
+        );
+        return;
+      }
+
+      if (orderDetail?.sendDate && orderDetail?.tuDongXuatKhoBanHang === 1) {
+        Alert.alert(
+          "Không thể xóa",
+          "Đơn hàng đã tạm tính và tự động xuất kho, không thể xóa món"
+        );
+        return;
+      }
+
+      console.log(`🗑️ Removing item ${itemId} from order`);
+      await ordersService.removeOrderProduct(selectedOrder.id, itemId);
+
+      // Reload order detail để cập nhật UI
+      await loadOrderDetail();
+
+      // Trigger refresh ở HomeScreen để cập nhật dữ liệu
+      onRefresh?.();
+    } catch (error: any) {
+      console.error("❌ Error removing item:", error);
+      Alert.alert(
+        "Lỗi",
+        error.message || "Không thể xóa sản phẩm khỏi đơn hàng"
+      );
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleCreateOrder = async () => {

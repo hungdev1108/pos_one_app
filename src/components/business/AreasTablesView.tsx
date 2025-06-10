@@ -1,5 +1,5 @@
 import { Area, Table, TableStatus } from "@/src/api/types";
-import { Ionicons } from "@expo/vector-icons";
+import { FontAwesome6, Ionicons } from "@expo/vector-icons";
 import React from "react";
 import {
   ActivityIndicator,
@@ -144,44 +144,62 @@ const AreasTablesView: React.FC<AreasTablesViewProps> = ({
               {table.name}
             </Text>
           </View>
-          <View style={[styles.statusBadge, { backgroundColor: statusColor }]}>
+          {/* <View style={[styles.statusBadge, { backgroundColor: statusColor }]}>
             <Ionicons name={statusIcon} size={10} color="#fff" />
             <Text style={styles.statusText} numberOfLines={1}>
               {statusText}
             </Text>
-          </View>
+          </View> */}
         </View>
 
         {table.order && (
           <View style={styles.orderInfo}>
-            <View style={styles.timeContainer}>
-              <Text style={styles.timeLabel}>Giờ vào:</Text>
-              <Text style={styles.orderTime}>
-                {new Date(table.order.createDate).toLocaleTimeString("vi-VN", {
-                  hour: "2-digit",
-                  minute: "2-digit",
-                })}
-              </Text>
+            <View style={styles.timeAndCustomerContainer}>
+              {table.status === TableStatus.Occupied && (
+                <View style={styles.customerIconContainer}>
+                  <FontAwesome6 name="person" size={22} color="#666" />
+                </View>
+              )}
+              <View style={styles.timeInfoContainer}>
+                <View style={styles.timeContainer}>
+                  <Text style={styles.timeLabel}>Giờ vào:</Text>
+                  <Text style={styles.orderTime}>
+                    {new Date(table.order.createDate).toLocaleTimeString(
+                      "vi-VN",
+                      {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      }
+                    )}
+                  </Text>
+                </View>
+
+                <View style={styles.dateContainer}>
+                  <Text style={styles.orderDate}>
+                    {new Date(table.order.createDate).toLocaleDateString(
+                      "vi-VN",
+                      {
+                        day: "2-digit",
+                        month: "2-digit",
+                        year: "numeric",
+                      }
+                    )}
+                  </Text>
+                </View>
+              </View>
             </View>
 
-            <View style={styles.dateContainer}>
-              <Text style={styles.orderDate}>
-                {new Date(table.order.createDate).toLocaleDateString("vi-VN", {
-                  day: "2-digit",
-                  month: "2-digit",
-                  year: "numeric",
-                })}
-              </Text>
-            </View>
-
-            {table.order.customer && (
+            {/* {table.order.customer && (
               <Text style={styles.customerName} numberOfLines={1}>
                 👤 {table.order.customer.name}
               </Text>
-            )}
+            )} */}
 
             <View style={styles.bottomInfo}>
-              <Text style={styles.productCount}>{totalQuantity} món</Text>
+              <View style={styles.productCountContainer}>
+                <Text style={styles.productCountNumber}>{totalQuantity}</Text>
+                <Text style={styles.productCountText}> món</Text>
+              </View>
               <View style={styles.totalAmountContainer}>
                 <Text style={styles.totalAmount} numberOfLines={2}>
                   {formatPrice(totalAmount)}
@@ -209,17 +227,19 @@ const AreasTablesView: React.FC<AreasTablesViewProps> = ({
           onPress={() => onAreaPress?.(area)}
         >
           <View style={styles.areaInfo}>
-            <Ionicons
-              name="tablet-landscape-outline"
-              size={20}
-              color="#198754"
-            />
+            <Ionicons name="tablet-landscape-outline" size={20} color="#666" />
             <Text style={styles.areaName}>{area.name}</Text>
           </View>
           <View style={styles.areaStats}>
-            <Text style={styles.statsText}>
-              {availableTables} trống • {occupiedTables} có khách
-            </Text>
+            {occupiedTables > 0 ? (
+              <Text style={styles.statsText_available}>
+                {availableTables} bàn trống • {occupiedTables} bàn có khách
+              </Text>
+            ) : (
+              <Text style={styles.statsText_occupied}>
+                {availableTables} bàn trống • {occupiedTables} bàn có khách
+              </Text>
+            )}
             <Ionicons name="chevron-forward" size={16} color="#666" />
           </View>
         </TouchableOpacity>
@@ -314,13 +334,14 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     flexWrap: "wrap",
     justifyContent: "space-between",
+    gap: 1,
   },
   tableCard: {
     backgroundColor: "#fff",
     borderRadius: 12,
     padding: 12,
     marginBottom: 12,
-    width: (width - 48) / 2 - 6,
+    width: (width - 48) / 2,
     // borderLeftWidth: 4,
     elevation: 2,
     shadowColor: "#000",
@@ -421,33 +442,45 @@ const styles = StyleSheet.create({
     paddingTop: 8,
     flex: 1,
   },
+  timeAndCustomerContainer: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    marginBottom: 4,
+  },
+  customerIconContainer: {
+    marginRight: 8,
+    marginTop: 2,
+  },
+  timeInfoContainer: {
+    flex: 1,
+  },
   timeContainer: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "flex-start",
+    justifyContent: "flex-end",
     marginBottom: 2,
   },
   dateContainer: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "flex-start",
+    justifyContent: "flex-end",
     marginBottom: 4,
   },
   timeLabel: {
-    fontSize: 12,
-    color: "#666",
+    fontSize: 13,
+    color: "#777",
     fontWeight: "500",
-    marginRight: 6,
+    marginRight: 2,
   },
   orderDate: {
     fontSize: 13,
-    color: "#666",
-    fontWeight: "600",
+    color: "#777",
+    fontWeight: "500",
   },
   orderTime: {
-    fontSize: 14,
-    color: "#198754",
-    fontWeight: "bold",
+    fontSize: 13,
+    color: "#777",
+    fontWeight: "500",
   },
   customerName: {
     fontSize: 12,
@@ -474,7 +507,8 @@ const styles = StyleSheet.create({
   totalAmount: {
     fontSize: 15,
     fontWeight: "bold",
-    color: "#dc3545",
+    // color: "#dc3545",
+    color: "#198754",
     textAlign: "right",
     lineHeight: 14,
   },
@@ -509,6 +543,28 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: "#6c757d",
     marginTop: 10,
+  },
+  productCountContainer: {
+    flexDirection: "row",
+    alignItems: "baseline",
+    justifyContent: "center",
+  },
+  productCountNumber: {
+    fontSize: 16,
+    fontWeight: "bold",
+    color: "#333",
+  },
+  productCountText: {
+    fontSize: 13,
+    color: "#666",
+  },
+  statsText_available: {
+    fontSize: 14,
+    color: "#198754",
+  },
+  statsText_occupied: {
+    fontSize: 14,
+    color: "#666",
   },
 });
 

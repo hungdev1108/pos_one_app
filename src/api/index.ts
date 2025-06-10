@@ -5,6 +5,7 @@ export { apiClient } from './client';
 export { areasService } from './services/areas';
 export { authService } from './services/auth';
 export { ordersService } from "./services/orders";
+export { productService } from './services/product';
 export { warehouseService } from './services/warehouse';
 
 // Export JWT utilities
@@ -19,11 +20,11 @@ export type {
     ApiRequestConfig,
     ApiResponse, Area, AreaDetailResponse, AreasResponse, Category, ConfigResponse, CreateOrderRequest, CreateOrderResponse, Customer, FnBConfig, JwtClaims, KitchenPrintData, LoginRequest,
     LoginResponse, Order, OrderDetail, OrderDetailProduct, OrderListItem, OrderOperationResponse, OrderProduct,
-    OrderProductRequest,
+    OrderProductRequest, OrdersListResponse,
+    OrdersRequestParams,
     // New Order types
-    OrderStatus, OrdersListResponse,
-    OrdersRequestParams, PrintOrderData, Product,
-    ProductsResponse, Table, TableDetailResponse, TableStatus, TablesResponse, Unit, UpdateOrderRequest, User,
+    OrderStatus, PrintOrderData, Product,
+    ProductDetail, ProductsResponse, Table, TableDetailResponse, TablesResponse, TableStatus, Unit, UpdateOrderRequest, User,
     UserInfo, Voucher, VoucherDetail, VoucherExtended, VoucherRequest
 } from './types';
 

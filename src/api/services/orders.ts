@@ -11,8 +11,10 @@ import {
   OrdersListResponse,
   OrdersRequestParams,
   PrintOrderData,
+  ProductDetail,
   UpdateOrderRequest
 } from "../types";
+import { productService } from "./product";
 
 /**
  * Orders Service cho F&B System
@@ -612,10 +614,13 @@ class OrdersService {
 
   /**
    * Cập nhật số lượng sản phẩm hiện có trong đơn hàng (thay vì thêm mới)
+   * @param orderId ID đơn hàng
+   * @param productId ID sản phẩm (OrderProduct.Id)
+   * @param changeAmount Số lượng thay đổi (+1 để tăng, -1 để giảm)
    */
-  async updateProductQuantityInOrder(orderId: string, productId: string, newQuantity: number): Promise<OrderOperationResponse> {
+  async updateProductQuantityInOrder(orderId: string, productId: string, changeAmount: number): Promise<OrderOperationResponse> {
     try {
-      console.log('📈 Updating product quantity in order:', orderId, productId, newQuantity);
+      console.log('📈 Updating product quantity in order:', orderId, productId, 'change:', changeAmount);
 
       // Lấy chi tiết đơn hàng để có thông tin sản phẩm hiện tại
       const orderDetail = await this.getOrderDetail(orderId);
@@ -625,44 +630,92 @@ class OrdersService {
         throw new Error("Sản phẩm không tồn tại trong đơn hàng");
       }
 
-             // Calculate totals for updated quantity
-       const totalCost = existingProduct.price * newQuantity;
-       const totalCostInclideVAT = existingProduct.priceIncludeVAT * newQuantity;
+      console.log('🔍 Existing product from order detail:', JSON.stringify(existingProduct, null, 2));
 
-       // Chuẩn bị payload để update sản phẩm hiện có - match format thành công
-       const payload = {
-         id: existingProduct.id, // Sử dụng ID hiện có của sản phẩm trong đơn hàng
-         productId: productId,
-         productCode: null, // Để server tự lấy
-         quantity: newQuantity,
-         price: existingProduct.price,
-         properties: null,
-         name: null, // Để server tự lấy
-         type: 0,
-         unitId: null,
-         unitName: "Cái",
-         totalCost: totalCost,
-         totalCostInclideVAT: totalCostInclideVAT,
-         priceIncludeVAT: existingProduct.priceIncludeVAT,
-         vat: 10,
-         isConfirm: false,
-         image: {
-           base64data: null,
-           contentType: null,
-           uploadedBytes: 0,
-           uploadData: null,
-           firstUpload: true,
-           lastUpload: false,
-           fileName: null,
-           folder: null,
-           type: 11,
-           filePath: null,
-           fullPath: null,
-           fileExtension: null
-         },
-         serials: [],
-         campaignId: null,
-       };
+      // Tính số lượng mới dựa vào changeAmount
+      const newQuantity = existingProduct.quantity + changeAmount;
+      console.log(`📊 Current quantity: ${existingProduct.quantity}, Change: ${changeAmount}, New quantity: ${newQuantity}`);
+
+      // Kiểm tra số lượng hợp lệ
+      if (newQuantity <= 0) {
+        console.log("⚠️ New quantity is 0 or negative, no action taken");
+        return {
+          successful: true,
+          data: "No change - quantity would be zero or negative",
+        };
+      }
+
+      // Lấy chi tiết sản phẩm từ API để có thông tin chính xác
+      let productDetail: ProductDetail | null = null;
+      let realProductId = productId;
+
+      // Thử lấy order products để tìm productId thật
+      try {
+        const orderProducts = await this.getOrderProducts(orderId);
+        console.log('📦 Order products raw data:', JSON.stringify(orderProducts, null, 2));
+        
+        const matchingProduct = orderProducts.find(p => p.id === productId);
+        console.log('🎯 Matching product from order products:', JSON.stringify(matchingProduct, null, 2));
+        
+        if (matchingProduct && matchingProduct.productId) {
+          realProductId = matchingProduct.productId;
+          console.log('✅ Found real productId:', realProductId);
+        } else {
+          console.log('⚠️ No productId found in order products, trying other fields...');
+          // Thử tìm trong các field khác
+          if (matchingProduct && matchingProduct.warehouseProductId) {
+            realProductId = matchingProduct.warehouseProductId;
+            console.log('✅ Found warehouseProductId:', realProductId);
+          } else if (matchingProduct && matchingProduct.WarehouseProductId) {
+            realProductId = matchingProduct.WarehouseProductId;
+            console.log('✅ Found WarehouseProductId:', realProductId);
+          }
+        }
+      } catch (error) {
+        console.log("⚠️ Could not get order products, using provided productId:", error);
+      }
+
+      try {
+        productDetail = await productService.getProductDetail(realProductId);
+        console.log("✅ Got product detail:", productDetail);
+      } catch (error) {
+        console.warn("⚠️ Could not fetch product detail, using existing info:", error);
+        console.warn("🔍 Failed productId was:", realProductId);
+      }
+
+      // Sử dụng thông tin từ productDetail nếu có, fallback về existingProduct
+      const productCode = productDetail?.code || existingProduct.productName || "DEFAULT_CODE";
+      const productName = productDetail?.title || existingProduct.productName || "Sản phẩm";
+      const unitName = productDetail?.unitName || "Cái";
+
+      console.log('📋 Final product info:', {
+        productCode,
+        productName,
+        unitName,
+        realProductId,
+        originalProductId: productId,
+        changeAmount,
+        newQuantity
+      });
+
+      // Chuẩn bị payload chính xác theo cấu trúc OrderProduct thực tế
+      const payload = {
+        id: existingProduct.id, // ✅ OrderProduct.Id từ đơn hàng hiện tại
+        productId: realProductId, // ✅ WarehouseProduct.Id thực sự 
+        productCode: productCode, // ✅ Mã sản phẩm thực từ API
+        quantity: newQuantity, // ✅ Số lượng mới (sau khi tính changeAmount)
+        price: existingProduct.price, // ✅ Giá trước thuế
+        priceIncludeVAT: existingProduct.priceIncludeVAT, // ✅ Giá sau thuế
+        unitName: unitName, // ✅ Đơn vị tính thực
+        vat: existingProduct.VAT || 10, // ✅ % thuế VAT
+        type: 1, // ✅ Loại sản phẩm
+        unitId: null, // ✅ NULL là hợp lệ
+        properties: null, // ✅ Properties
+        campaignId: null, // ✅ Campaign ID
+        name: productName, // ✅ Tên sản phẩm thực từ API
+        // ❌ LOẠI BỎ các computed properties không cần thiết:
+        // totalCost, totalCostInclideVAT, isConfirm, image, serials
+      };
 
       console.log('📦 Final updateProductQuantityInOrder payload:', JSON.stringify(payload, null, 2));
 
@@ -672,11 +725,23 @@ class OrdersService {
       );
 
       console.log('✅ Product quantity updated:', response);
+      console.log('📋 Payload sent to API - Final check:', {
+        orderId,
+        productId: payload.productId,
+        orderProductId: payload.id,
+        sentQuantity: payload.quantity,
+        changeAmount,
+        originalQuantity: existingProduct.quantity,
+        calculatedNewQuantity: newQuantity
+      });
 
+      // API success case: status 200 với data có thể là empty string
+      // Nếu không có error và response tồn tại, coi như thành công
       if (response && response.successful) {
         return response;
       }
 
+      // Kiểm tra nếu response có status code thành công
       if (response && typeof response === 'object') {
         return {
           successful: true,
@@ -684,7 +749,11 @@ class OrdersService {
         };
       }
 
-      throw new Error("Lỗi khi cập nhật số lượng sản phẩm");
+      // Nếu response là string rỗng hoặc primitive, vẫn coi như thành công
+      return {
+        successful: true,
+        data: response,
+      };
     } catch (error: any) {
       console.error("❌ Error updating product quantity:", error);
       throw error;

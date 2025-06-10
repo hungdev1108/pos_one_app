@@ -3,13 +3,16 @@ import { Ionicons } from "@expo/vector-icons";
 import React from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
+type QuantityUpdateMode = "absolute" | "change";
+
 interface ProductQuantityControlsProps {
   item: any;
   order?: any;
-  onUpdateQuantity?: (itemId: string, newQuantity: number) => void;
+  onUpdateQuantity?: (itemId: string, value: number) => void;
   onRemoveItem?: (itemId: string) => void;
   isPaid: boolean;
   showAsReadOnly?: boolean;
+  mode?: QuantityUpdateMode; // "absolute" cho đơn mới, "change" cho đơn có sẵn
 }
 
 export const ProductQuantityControls: React.FC<
@@ -21,6 +24,7 @@ export const ProductQuantityControls: React.FC<
   onRemoveItem,
   isPaid,
   showAsReadOnly = false,
+  mode = "absolute", // Default là absolute để không break existing code
 }) => {
   // Đảm bảo order không undefined để tránh lỗi
   const safeOrder = order || {};
@@ -29,19 +33,70 @@ export const ProductQuantityControls: React.FC<
     safeOrder
   );
 
+  console.log("🔧 ProductQuantityControls - State:", {
+    itemId: item.id,
+    quantity: item.quantity,
+    mode,
+    isPaid,
+    showAsReadOnly,
+    updateQuantity: productVisibility.updateQuantity,
+    removeProduct: productVisibility.removeProduct,
+    hasUpdateHandler: !!onUpdateQuantity,
+    hasRemoveHandler: !!onRemoveItem,
+  });
+
   const handleIncreaseQuantity = () => {
+    console.log("🔼 Increase quantity button pressed, mode:", mode);
     if (productVisibility.updateQuantity && onUpdateQuantity) {
-      onUpdateQuantity(item.id, item.quantity + 1);
+      if (mode === "change") {
+        // Truyền +1 để tăng số lượng (cho đơn hàng có sẵn)
+        onUpdateQuantity(item.id, +1);
+      } else {
+        // Truyền newQuantity (cho đơn hàng mới)
+        onUpdateQuantity(item.id, item.quantity + 1);
+      }
+    } else {
+      console.log(
+        "⚠️ Increase blocked - updateQuantity:",
+        productVisibility.updateQuantity,
+        "hasHandler:",
+        !!onUpdateQuantity
+      );
     }
   };
 
   const handleDecreaseQuantity = () => {
-    if (!productVisibility.updateQuantity) return;
+    console.log("🔽 Decrease quantity button pressed, mode:", mode);
+    if (!productVisibility.updateQuantity) {
+      console.log(
+        "⚠️ Decrease blocked - updateQuantity permission:",
+        productVisibility.updateQuantity
+      );
+      return;
+    }
 
     if (item.quantity > 1 && onUpdateQuantity) {
-      onUpdateQuantity(item.id, item.quantity - 1);
+      if (mode === "change") {
+        // Truyền -1 để giảm số lượng (cho đơn hàng có sẵn)
+        console.log("🔽 Sending changeAmount: -1");
+        onUpdateQuantity(item.id, -1);
+      } else {
+        // Truyền newQuantity (cho đơn hàng mới)
+        console.log("🔽 Sending newQuantity:", item.quantity - 1);
+        onUpdateQuantity(item.id, item.quantity - 1);
+      }
     } else if (productVisibility.removeProduct && onRemoveItem) {
+      console.log("🗑️ Remove item button pressed");
       onRemoveItem(item.id);
+    } else {
+      console.log(
+        "⚠️ Decrease/Remove blocked - quantity:",
+        item.quantity,
+        "removeProduct:",
+        productVisibility.removeProduct,
+        "hasRemoveHandler:",
+        !!onRemoveItem
+      );
     }
   };
 
@@ -59,7 +114,10 @@ export const ProductQuantityControls: React.FC<
     <View style={styles.quantityControls}>
       <TouchableOpacity
         style={styles.quantityButton}
-        onPress={handleDecreaseQuantity}
+        onPress={() => {
+          console.log("👆 Decrease TouchableOpacity pressed");
+          handleDecreaseQuantity();
+        }}
         disabled={!productVisibility.updateQuantity}
       >
         <Ionicons
@@ -73,7 +131,10 @@ export const ProductQuantityControls: React.FC<
 
       <TouchableOpacity
         style={styles.quantityButton}
-        onPress={handleIncreaseQuantity}
+        onPress={() => {
+          console.log("👆 Increase TouchableOpacity pressed");
+          handleIncreaseQuantity();
+        }}
         disabled={!productVisibility.updateQuantity}
       >
         <Ionicons

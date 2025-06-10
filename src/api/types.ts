@@ -124,6 +124,30 @@ export interface ProductsResponse {
   pageSize: number;
 }
 
+// Product Detail Interface
+export interface ProductDetail {
+  id: string;
+  languageCode: string;
+  title: string;
+  brief?: string;
+  content?: string;
+  categoryId: string;
+  type: number; // 0: Hàng hóa, 1: Dịch vụ
+  view: number;
+  createDate: string;
+  isPuslished: boolean;
+  order: number;
+  image?: FileData;
+  code: string;
+  discount: number;
+  discountType: number; // 0: Không giảm, 1: %, 2: VND, 3: Giá cố định
+  price: number;
+  unitName: string;
+  printGroupId?: string;
+  isSplit: boolean;
+  tags?: string[];
+}
+
 // Areas & Tables Types
 export interface Customer {
   id: string;
