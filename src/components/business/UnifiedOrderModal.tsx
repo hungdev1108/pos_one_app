@@ -32,6 +32,7 @@ import {
   formatPrice as formatPriceUtil,
 } from "../../utils/orderCalculations";
 import CustomerInfoModal from "./CustomerInfoModal";
+import KitchenPrintModal from "./KitchenPrintModal";
 import OrderActionButtons from "./OrderActionButtons";
 import PaymentModal from "./PaymentModal";
 import ProductQuantityControls from "./ProductQuantityControls";
@@ -251,6 +252,11 @@ export default function UnifiedOrderModal({
   const [orderStatusText, setOrderStatusText] = useState<string>("");
   const [orderDetailItems, setOrderDetailItems] = useState<OrderItem[]>([]);
   const [paymentModalVisible, setPaymentModalVisible] = useState(false);
+
+  // Kitchen print modal state
+  const [kitchenPrintModalVisible, setKitchenPrintModalVisible] =
+    useState(false);
+  const [kitchenPrintData, setKitchenPrintData] = useState<any>(null);
 
   // Customer info modal state
   const [customerInfoModalVisible, setCustomerInfoModalVisible] =
@@ -962,6 +968,125 @@ export default function UnifiedOrderModal({
     }
   };
 
+  // Hàm xử lý luồng in chế biến: tạo đơn hàng → hiển thị bill in chế biến
+  const handleKitchenPrintFlow = async () => {
+    if (loading) {
+      console.log(
+        "⚠️ Order creation already in progress, ignoring duplicate call"
+      );
+      return;
+    }
+
+    if (orderItems.length === 0) {
+      Alert.alert("Lỗi", "Chưa có món nào được chọn");
+      return;
+    }
+
+    try {
+      setLoading(true);
+
+      // Chuẩn bị dữ liệu sản phẩm
+      const products = orderItems.map((item) => ({
+        productId: item.product.id,
+        quantity: item.quantity,
+        price: item.product.price,
+        priceIncludeVAT: item.product.priceAfterDiscount || item.product.price,
+        note: "",
+        vat: 10,
+        name: item.product.title,
+        productCode: item.product.code,
+        unitName: item.product.unitName || "Cái",
+      }));
+
+      // Sử dụng thông tin khách hàng đã lưu hoặc giá trị mặc định
+      const finalCustomerName =
+        customerInfo.customerName || "Người mua không cung cấp thông tin";
+      const finalCustomerPhone = customerInfo.customerPhone || "0000000000";
+
+      // Tạo request
+      const orderData: any = {
+        customerName: finalCustomerName,
+        customerPhone: finalCustomerPhone,
+        products,
+        note: "",
+        paymentMethod: 0,
+        priceIncludeVAT: true,
+        discountType: 0,
+        discount: 0,
+        discountVAT: 0,
+        orderCustomerName: finalCustomerName,
+        orderCustomerPhone: finalCustomerPhone,
+        isDelivery: false,
+        debt: {
+          debit: 0,
+          debitExpire: new Date().toISOString(),
+        },
+        delivery: {
+          deliveryId: 0,
+          deliveryName: "",
+          deliveryCode: "",
+          deliveryFee: 0,
+          cod: false,
+        },
+        flashSales: [],
+      };
+
+      // Chỉ thêm tableId nếu có bàn được chọn
+      if (selectedTable?.id) {
+        orderData.tableId = selectedTable.id;
+      }
+
+      console.log("🍽️ Creating order for kitchen print:", orderData);
+      const response = await ordersService.createOrder(orderData);
+
+      if (response.successful && response.data) {
+        const orderId = response.data.id;
+        const orderCode = response.data.code;
+
+        console.log("✅ Order created for kitchen print:", orderCode);
+
+        // Chuẩn bị dữ liệu cho KitchenPrintModal
+        const printData = {
+          orderCode: orderCode,
+          tableName: selectedTable?.name || "BÀN SỐ - Bàn Số 8",
+          employeeName: "Nhân viên",
+          items: orderItems.map((item) => ({
+            id: item.id,
+            name: item.title,
+            quantity: item.quantity,
+            note: "",
+          })),
+          createTime: new Date().toISOString(),
+        };
+
+        // Reset customer info và clear order
+        setShouldResetCustomerInfo(true);
+        setCustomerInfo({
+          customerName: "",
+          customerPhone: "",
+          customerAddress: "",
+        });
+        onClearOrder?.();
+
+        // Hiển thị KitchenPrintModal
+        setKitchenPrintData(printData);
+        setKitchenPrintModalVisible(true);
+
+        console.log("🖨️ Kitchen print modal opened for order:", orderCode);
+      } else {
+        throw new Error(response.error || "Không thể tạo đơn hàng");
+      }
+    } catch (error: any) {
+      console.error("❌ Error in kitchen print flow:", error);
+      Alert.alert(
+        "Lỗi",
+        error.message || "Có lỗi xảy ra khi tạo đơn hàng. Vui lòng thử lại."
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleOrderAction = async (action: string) => {
     if (selectedOrder && orderDetail) {
       try {
@@ -978,6 +1103,8 @@ export default function UnifiedOrderModal({
                     Alert.alert("Thành công", "Đã hủy đơn hàng");
                     onClose();
                     onRefresh?.();
+                    // Clear selected order để ẩn OrderBottomSheet
+                    onClearOrder?.();
                   } catch (error: any) {
                     Alert.alert(
                       "Lỗi",
@@ -993,8 +1120,8 @@ export default function UnifiedOrderModal({
             await handleCreateOrder();
             break;
           case "print_kitchen":
-            // Logic in chế biến
-            console.log("In chế biến cho đơn hàng:", orderDetail.id);
+            // Logic in chế biến cho đơn hàng mới: tạo đơn và hiển thị bill
+            await handleKitchenPrintFlow();
             break;
           case "print_bill":
           case "print_temporary":
@@ -1072,7 +1199,8 @@ export default function UnifiedOrderModal({
           onClose();
           break;
         case "print_kitchen":
-          console.log("In chế biến cho đơn hàng mới");
+          // Logic in chế biến cho đơn hàng mới: tạo đơn và hiển thị bill
+          await handleKitchenPrintFlow();
           break;
         default:
           console.log("Action không được hỗ trợ cho đơn hàng mới:", action);
@@ -1244,6 +1372,19 @@ export default function UnifiedOrderModal({
           onSave={handleCustomerInfoSave}
           shouldReset={shouldResetCustomerInfo}
         />
+
+        {/* Kitchen Print Modal */}
+        {kitchenPrintData && (
+          <KitchenPrintModal
+            visible={kitchenPrintModalVisible}
+            onClose={() => {
+              setKitchenPrintModalVisible(false);
+              setKitchenPrintData(null);
+              onClose(); // Đóng UnifiedOrderModal sau khi in xong
+            }}
+            printData={kitchenPrintData}
+          />
+        )}
       </View>
     </Modal>
   );

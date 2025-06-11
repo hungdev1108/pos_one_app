@@ -69,8 +69,8 @@ export class ButtonVisibilityService {
           visibility.payment = true;             // Thanh toán
           
           // Retail System
-          visibility.delete = true;              // Xóa đơn
-          visibility.send = true;                // Gửi hàng (SendDate == null)
+          visibility.delete = false;              // Xóa đơn
+          visibility.send = false;                // Gửi hàng (SendDate == null)
           break;
           
         case 'confirmed':
@@ -80,8 +80,8 @@ export class ButtonVisibilityService {
           visibility.payment = true;             // Thanh toán
           
           // Retail System  
-          visibility.delete = true;              // Xóa đơn
-          visibility.send = true;                // Gửi hàng
+          visibility.delete = false;              // Xóa đơn
+          visibility.send = false;                // Gửi hàng
           break;
           
         case 'sent':
@@ -91,8 +91,8 @@ export class ButtonVisibilityService {
           visibility.payment = true;             // Thanh toán
           
           // Retail System
-          visibility.delete = true;              // Xóa đơn
-          visibility.confirm = true;             // Xác nhận (SendDate != null)
+          visibility.delete = false;              // Xóa đơn
+          visibility.confirm = false;             // Xác nhận (SendDate != null)
           break;
           
         case 'completed':

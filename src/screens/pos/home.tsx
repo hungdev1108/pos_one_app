@@ -72,6 +72,7 @@ export default function HomeScreen() {
     undefined
   );
   const [orderDetailRefreshTrigger, setOrderDetailRefreshTrigger] = useState(0);
+  const [ordersRefreshTrigger, setOrdersRefreshTrigger] = useState(0);
 
   const [unifiedOrderModalVisible, setUnifiedOrderModalVisible] =
     useState(false);
@@ -581,7 +582,7 @@ export default function HomeScreen() {
     setSelectedTableForOrder(null);
     setSelectedTable(null);
     setSelectedOrder(undefined);
-    console.log("🗑️ Order items cleared");
+    console.log("🗑️ Order items cleared - including selectedOrder");
   };
 
   const handleViewOrder = (table: Table) => {
@@ -644,8 +645,9 @@ export default function HomeScreen() {
     } else if (activeTab === TabType.MENU) {
       await Promise.all([loadCategories(), loadAllProducts()]);
     } else if (activeTab === TabType.ORDERS) {
-      // OrdersView sẽ tự handle refresh khi onRefresh được gọi
+      // Trigger refresh OrdersView
       console.log("🔄 Refreshing orders data");
+      setOrdersRefreshTrigger((prev) => prev + 1);
     }
 
     setRefreshing(false);
@@ -987,7 +989,11 @@ export default function HomeScreen() {
         );
       case TabType.ORDERS:
         return (
-          <OrdersView onOrderPress={handleOrderPress} onRefresh={onRefresh} />
+          <OrdersView
+            onOrderPress={handleOrderPress}
+            onRefresh={onRefresh}
+            refreshTrigger={ordersRefreshTrigger}
+          />
         );
       default:
         return null;

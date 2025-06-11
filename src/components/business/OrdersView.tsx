@@ -22,6 +22,7 @@ import {
 interface OrdersViewProps {
   onOrderPress?: (order: OrderListItem) => void;
   onRefresh?: () => void;
+  refreshTrigger?: number;
 }
 
 // Enum cho các tab trạng thái đơn hàng
@@ -35,7 +36,11 @@ enum OrderTabType {
 
 const { width } = Dimensions.get("window");
 
-const OrdersView: React.FC<OrdersViewProps> = ({ onOrderPress, onRefresh }) => {
+const OrdersView: React.FC<OrdersViewProps> = ({
+  onOrderPress,
+  onRefresh,
+  refreshTrigger,
+}) => {
   const [activeTab, setActiveTab] = useState<OrderTabType>(OrderTabType.NEW);
   const [orders, setOrders] = useState<OrderListItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -60,6 +65,14 @@ const OrdersView: React.FC<OrdersViewProps> = ({ onOrderPress, onRefresh }) => {
   useEffect(() => {
     loadOrdersByTab();
   }, [activeTab]);
+
+  // Lắng nghe refreshTrigger từ parent component
+  useEffect(() => {
+    if (refreshTrigger && refreshTrigger > 0) {
+      console.log("🔄 OrdersView refreshing due to trigger:", refreshTrigger);
+      loadOrdersByTab();
+    }
+  }, [refreshTrigger]);
 
   const loadInitialData = async () => {
     try {
