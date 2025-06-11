@@ -369,8 +369,14 @@ export default function HomeScreen() {
     // TODO: Show product details modal
   };
 
-  const handleTablePress = (table: Table) => {
-    console.log("🍽️ Table pressed:", table.name);
+  const handleTablePress = (table: Table, areaName?: string) => {
+    console.log("🍽️ Table pressed:", table.name, "in area:", areaName);
+
+    // Thêm thông tin areaName vào table object
+    const tableWithArea = {
+      ...table,
+      areaName: areaName,
+    } as Table & { areaName?: string };
 
     // Nếu đang có món trong giỏ hàng và chọn bàn khác
     if (
@@ -391,9 +397,9 @@ export default function HomeScreen() {
               onPress: () => {
                 // Clear order items hiện tại
                 setOrderItems([]);
-                // Chọn bàn mới
-                setSelectedTable(table);
-                setSelectedTableForOrder(table);
+                // Chọn bàn mới với thông tin area
+                setSelectedTable(tableWithArea);
+                setSelectedTableForOrder(tableWithArea);
                 // Load thông tin đơn hàng của bàn mới
                 if (table.order?.id) {
                   loadTableOrder(table.order.id);
@@ -416,8 +422,8 @@ export default function HomeScreen() {
             {
               text: "Chuyển bàn",
               onPress: () => {
-                setSelectedTable(table);
-                setSelectedTableForOrder(table);
+                setSelectedTable(tableWithArea);
+                setSelectedTableForOrder(tableWithArea);
                 // Clear selectedOrder khi chuyển sang bàn trống
                 setSelectedOrder(undefined);
                 console.log(
@@ -431,8 +437,8 @@ export default function HomeScreen() {
       }
     }
 
-    setSelectedTable(table);
-    setSelectedTableForOrder(table);
+    setSelectedTable(tableWithArea);
+    setSelectedTableForOrder(tableWithArea);
 
     if (table.status === 0) {
       // Bàn trống - clear selectedOrder để không hiển thị thông tin đơn hàng cũ

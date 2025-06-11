@@ -17,7 +17,7 @@ interface AreasTablesViewProps {
   areas: Area[];
   loading: boolean;
   onRefresh?: () => void;
-  onTablePress?: (table: Table) => void;
+  onTablePress?: (table: Table, areaName?: string) => void;
   onAreaPress?: (area: Area) => void;
   selectedTable?: Table | null;
 }
@@ -69,7 +69,7 @@ const AreasTablesView: React.FC<AreasTablesViewProps> = ({
     return new Intl.NumberFormat("vi-VN").format(price);
   };
 
-  const renderTable = (table: Table) => {
+  const renderTable = (table: Table, areaName: string) => {
     const statusColor = getTableStatusColor(table.status);
     const statusText = getTableStatusText(table.status);
     const statusIcon = getTableStatusIcon(table.status);
@@ -96,7 +96,7 @@ const AreasTablesView: React.FC<AreasTablesViewProps> = ({
             // { borderLeftColor: statusColor },
             isSelected && styles.selectedTableCard,
           ]}
-          onPress={() => onTablePress?.(table)}
+          onPress={() => onTablePress?.(table, areaName)}
           key={table.id}
         >
           <View style={styles.emptyTableContent}>
@@ -130,7 +130,7 @@ const AreasTablesView: React.FC<AreasTablesViewProps> = ({
           // { borderLeftColor: statusColor },
           isSelected && styles.selectedTableCard,
         ]}
-        onPress={() => onTablePress?.(table)}
+        onPress={() => onTablePress?.(table, areaName)}
         key={table.id}
       >
         <View style={styles.tableHeader}>
@@ -245,7 +245,7 @@ const AreasTablesView: React.FC<AreasTablesViewProps> = ({
         </TouchableOpacity>
 
         <View style={styles.tablesGrid}>
-          {area.tables.map((table) => renderTable(table))}
+          {area.tables.map((table) => renderTable(table, area.name))}
         </View>
       </View>
     );

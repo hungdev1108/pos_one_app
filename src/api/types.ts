@@ -185,6 +185,7 @@ export interface Table {
   priority: number;
   status: TableStatus;
   order?: Order;
+  areaName?: string;
 }
 
 export interface Area {

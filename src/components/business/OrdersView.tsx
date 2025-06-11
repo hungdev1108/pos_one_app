@@ -387,7 +387,8 @@ const OrdersView: React.FC<OrdersViewProps> = ({
       OrderTabType.CONFIRMED,
       OrderTabType.SENT,
       OrderTabType.RECEIVED,
-      OrderTabType.CANCELLED,
+      // Không có tab huỷ
+      // OrderTabType.CANCELLED,
     ];
 
     // Ẩn tab SENT nếu là thanh toán tại quầy

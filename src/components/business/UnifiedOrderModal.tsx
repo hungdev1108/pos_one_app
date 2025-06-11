@@ -1261,24 +1261,30 @@ export default function UnifiedOrderModal({
       <View style={styles.container}>
         {/* Header */}
         <View style={styles.header}>
-          <Text style={styles.headerTitle}>
-            {title ||
-              (selectedOrder
-                ? "Chi tiết đơn hàng"
-                : selectedTable
-                ? `Chi tiết - ${selectedTable.name}`
-                : "Tạo đơn hàng mới")}
-          </Text>
+          {title ? (
+            <Text style={styles.headerTitle}>{title}</Text>
+          ) : selectedOrder ? (
+            <Text style={styles.headerTitle}>Chi tiết đơn hàng</Text>
+          ) : selectedTable ? (
+            <View>
+              <Text style={styles.headerTitle}>Phiếu order</Text>
+              <Text style={styles.headerSubtitle}>
+                {selectedTable.name} - {selectedTable.areaName}
+              </Text>
+            </View>
+          ) : (
+            <Text style={styles.headerTitle}>Tạo đơn hàng mới</Text>
+          )}
           <View style={styles.headerActions}>
             {/* Customer Info Icon - Only show for new orders */}
-            {!selectedOrder && (
+            {/* {!selectedOrder && (
               <TouchableOpacity
                 style={styles.customerInfoButton}
                 onPress={() => setCustomerInfoModalVisible(true)}
               >
                 <Ionicons name="person-add" size={20} color="#198754" />
               </TouchableOpacity>
-            )}
+            )} */}
             <TouchableOpacity style={styles.closeButton} onPress={onClose}>
               <Ionicons name="close" size={24} color="#333" />
             </TouchableOpacity>
@@ -1321,6 +1327,27 @@ export default function UnifiedOrderModal({
               </View>
             )}
 
+            {/* Flex row:  Icon back to menu and Icon customer info */}
+            {selectedTable && !selectedOrder && (
+              <View style={styles.backToMenuAndCustomerInfoContainer}>
+                <TouchableOpacity
+                  style={styles.backToMenuContainer}
+                  onPress={onClose}
+                >
+                  <Ionicons name="arrow-back" size={26} color="#198754" />
+                  <Text style={styles.backToMenuText}>Quay lại</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.backToCustomerInfoContainer}
+                  onPress={() => setCustomerInfoModalVisible(true)}
+                >
+                  <Ionicons name="person-add" size={26} color="#198754" />
+                  <Text style={styles.customerInfoText}>Khách hàng</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
             {/* Summary Section */}
             {displayItems.length > 0 && (
               <View style={styles.summarySection}>
@@ -1348,9 +1375,7 @@ export default function UnifiedOrderModal({
             )}
 
             {/* Footer Actions */}
-            <View
-              style={[styles.footer, { paddingBottom: insets.bottom + 16 }]}
-            >
+            <View style={[styles.footer, { paddingBottom: insets.bottom + 5 }]}>
               {renderActionButtons()}
             </View>
           </View>
@@ -1393,7 +1418,7 @@ export default function UnifiedOrderModal({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#f8f9fa",
+    backgroundColor: "#fff",
   },
   contentContainer: {
     flex: 1,
@@ -1412,20 +1437,17 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "bold",
     color: "#333",
-    flex: 1,
+    // flex: 1,
+    marginBottom: 3,
   },
   headerActions: {
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
   },
-  customerInfoButton: {
-    padding: 8,
-    borderRadius: 8,
-    backgroundColor: "#f8f9fa",
-    borderWidth: 1,
-    borderColor: "#198754",
-  },
+  // customerInfoButton: {
+  //   padding: 8,
+  // },
   closeButton: {
     padding: 4,
   },
@@ -1600,8 +1622,8 @@ const styles = StyleSheet.create({
     backgroundColor: "#fff",
     paddingHorizontal: 20,
     paddingVertical: 16,
-    borderTopWidth: 1,
-    borderTopColor: "#f0f0f0",
+    borderTopWidth: 1.5,
+    borderTopColor: "#f1f1f1",
   },
   summaryRow: {
     flexDirection: "row",
@@ -1619,9 +1641,9 @@ const styles = StyleSheet.create({
     color: "#333",
   },
   totalRow: {
-    borderTopWidth: 1,
-    borderTopColor: "#f0f0f0",
-    paddingTop: 12,
+    // borderTopWidth: 1,
+    // borderTopColor: "#f0f0f0",
+    paddingTop: 0,
     marginBottom: 0,
   },
   totalLabel: {
@@ -1635,7 +1657,7 @@ const styles = StyleSheet.create({
     color: "#198754",
   },
   footer: {
-    paddingHorizontal: 20,
+    // paddingHorizontal: 20,
     paddingTop: 16,
     backgroundColor: "#fff",
     borderTopWidth: 1,
@@ -1696,5 +1718,47 @@ const styles = StyleSheet.create({
     marginTop: 16,
     fontSize: 16,
     color: "#666",
+  },
+  headerSubtitle: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#666",
+  },
+  backToMenuAndCustomerInfoContainer: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginHorizontal: 20,
+    marginVertical: 5,
+  },
+  backToMenuContainer: {
+    flexDirection: "column",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#f8f9fa",
+    borderRadius: 5,
+    paddingHorizontal: 5,
+    paddingVertical: 3,
+  },
+  backToCustomerInfoContainer: {
+    flexDirection: "column",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#f8f9fa",
+    borderRadius: 5,
+    paddingHorizontal: 5,
+    paddingVertical: 3,
+  },
+  backToMenuText: {
+    fontSize: 10,
+    fontWeight: "600",
+    color: "#198754",
+    marginTop: 1,
+  },
+  customerInfoText: {
+    fontSize: 10,
+    fontWeight: "600",
+    color: "#198754",
+    marginTop: 1,
   },
 });

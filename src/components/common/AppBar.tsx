@@ -1,7 +1,13 @@
 import { Ionicons } from "@expo/vector-icons";
 import { StatusBar } from "expo-status-bar";
 import React from "react";
-import { Image, StyleSheet, TouchableOpacity, View } from "react-native";
+import {
+  Image,
+  Platform,
+  StyleSheet,
+  TouchableOpacity,
+  View,
+} from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 interface AppBarProps {
@@ -14,12 +20,16 @@ export default function AppBar({ onMenuPress, onReloadPress }: AppBarProps) {
 
   return (
     <>
-      <StatusBar style="light" backgroundColor="#198754" />
+      <StatusBar style="light" />
+      {/* Status bar background for Android edge-to-edge */}
+      {Platform.OS === "android" && (
+        <View style={[styles.statusBarBackground, { height: insets.top }]} />
+      )}
       <View
         style={[
           styles.container,
           {
-            paddingTop: insets.top + 8, // Dynamic padding cho tai thỏ/Dynamic Island
+            paddingTop: Platform.OS === "android" ? 8 : insets.top + 8, // Conditional padding
           },
         ]}
       >
@@ -61,6 +71,9 @@ export default function AppBar({ onMenuPress, onReloadPress }: AppBarProps) {
 }
 
 const styles = StyleSheet.create({
+  statusBarBackground: {
+    backgroundColor: "#198754",
+  },
   logoContainer: {
     flex: 1,
     justifyContent: "center",
