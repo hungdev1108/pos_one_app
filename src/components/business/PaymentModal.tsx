@@ -3,7 +3,9 @@ import React, { useEffect, useState } from "react";
 import {
   Alert,
   Dimensions,
+  KeyboardAvoidingView,
   Modal,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -27,6 +29,23 @@ interface PaymentData {
   paymentMethod: "cash" | "bank";
   bankCode?: string;
   voucher?: string;
+  invoiceType?: "individual" | "business";
+  customerInfo?: CustomerInvoiceInfo;
+}
+
+interface CustomerInvoiceInfo {
+  // Thông tin cá nhân
+  individualName?: string;
+  individualPhone?: string;
+  individualAddress?: string;
+  individualEmail?: string;
+
+  // Thông tin doanh nghiệp
+  taxCodePersonal?: string;
+  taxCodeBusiness?: string;
+  businessName?: string;
+  businessAddress?: string;
+  businessEmail?: string;
 }
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
@@ -54,6 +73,22 @@ export default function PaymentModal({
   const [selectedBank, setSelectedBank] = useState<string>("");
   const [billCounts, setBillCounts] = useState<{ [key: number]: number }>({});
 
+  // State cho loại hóa đơn và thông tin khách hàng
+  const [invoiceType, setInvoiceType] = useState<"individual" | "business">(
+    "individual"
+  );
+  const [customerInfo, setCustomerInfo] = useState<CustomerInvoiceInfo>({
+    individualName: "",
+    individualPhone: "",
+    individualAddress: "",
+    individualEmail: "",
+    taxCodePersonal: "",
+    taxCodeBusiness: "",
+    businessName: "",
+    businessAddress: "",
+    businessEmail: "",
+  });
+
   // Reset state when modal opens
   useEffect(() => {
     if (visible) {
@@ -61,6 +96,18 @@ export default function PaymentModal({
       setVoucher("");
       setSelectedBank("");
       setBillCounts({});
+      setInvoiceType("individual");
+      setCustomerInfo({
+        individualName: "",
+        individualPhone: "",
+        individualAddress: "",
+        individualEmail: "",
+        taxCodePersonal: "",
+        taxCodeBusiness: "",
+        businessName: "",
+        businessAddress: "",
+        businessEmail: "",
+      });
     }
   }, [visible]);
 
@@ -147,6 +194,28 @@ export default function PaymentModal({
     );
   };
 
+  const handleTaxLookup = () => {
+    if (!customerInfo.taxCodeBusiness?.trim()) {
+      Alert.alert("Thông báo", "Bạn chưa nhập mã số thuế.");
+      return;
+    }
+    // TODO: Implement tax code lookup logic
+    Alert.alert(
+      "Thông báo",
+      "Chức năng tra cứu thông tin từ cơ quan thuế đang được phát triển."
+    );
+  };
+
+  const handleCustomerInfoChange = (
+    field: keyof CustomerInvoiceInfo,
+    value: string
+  ) => {
+    setCustomerInfo((prev) => ({
+      ...prev,
+      [field]: value,
+    }));
+  };
+
   const handlePayment = () => {
     if (customerPaidAmount < totalAmount) {
       Alert.alert("Lỗi", "Số tiền khách trả phải đủ để thanh toán.");
@@ -160,6 +229,8 @@ export default function PaymentModal({
       paymentMethod: "bank",
       bankCode: selectedBank || "cash",
       voucher: voucher.trim() || undefined,
+      invoiceType: invoiceType,
+      customerInfo: customerInfo,
     };
 
     onPayment(paymentData);
@@ -277,6 +348,194 @@ export default function PaymentModal({
     );
   };
 
+  // Render Type of invoice to be issued
+  const renderTypeOfInvoice = () => {
+    return (
+      <View style={styles.typeOfInvoiceContainer}>
+        {/* Radio buttons cho loại hóa đơn */}
+        <View style={styles.typeOfInvoiceRadioButtonContainer}>
+          <TouchableOpacity
+            style={[
+              styles.typeOfInvoiceRadioButton,
+              invoiceType === "individual" &&
+                styles.typeOfInvoiceRadioButtonSelected,
+            ]}
+            onPress={() => setInvoiceType("individual")}
+          >
+            <View style={styles.radioButtonInner}>
+              <View
+                style={[
+                  styles.radioCircle,
+                  invoiceType === "individual" && styles.radioCircleSelected,
+                ]}
+              >
+                {invoiceType === "individual" && (
+                  <View style={styles.radioInnerCircle} />
+                )}
+              </View>
+              <Text
+                style={[
+                  styles.typeOfInvoiceRadioButtonText,
+                  invoiceType === "individual" &&
+                    styles.typeOfInvoiceRadioButtonTextSelected,
+                ]}
+              >
+                Cá nhân
+              </Text>
+            </View>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[
+              styles.typeOfInvoiceRadioButton,
+              invoiceType === "business" &&
+                styles.typeOfInvoiceRadioButtonSelected,
+            ]}
+            onPress={() => setInvoiceType("business")}
+          >
+            <View style={styles.radioButtonInner}>
+              <View
+                style={[
+                  styles.radioCircle,
+                  invoiceType === "business" && styles.radioCircleSelected,
+                ]}
+              >
+                {invoiceType === "business" && (
+                  <View style={styles.radioInnerCircle} />
+                )}
+              </View>
+              <Text
+                style={[
+                  styles.typeOfInvoiceRadioButtonText,
+                  invoiceType === "business" &&
+                    styles.typeOfInvoiceRadioButtonTextSelected,
+                ]}
+              >
+                Doanh nghiệp
+              </Text>
+            </View>
+          </TouchableOpacity>
+        </View>
+
+        {/* Form thông tin khách hàng */}
+        <View style={styles.customerFormContainer}>
+          {invoiceType === "individual" ? (
+            // Form cá nhân
+            <View>
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>
+                  Mã số thuế cá nhân (Nếu có)
+                </Text>
+                <TextInput
+                  style={styles.textInput}
+                  value={customerInfo.taxCodePersonal}
+                  onChangeText={(value) =>
+                    handleCustomerInfoChange("taxCodePersonal", value)
+                  }
+                  placeholder="Nhập mã số thuế"
+                  keyboardType="numeric"
+                  placeholderTextColor="#999"
+                  returnKeyType="next"
+                  blurOnSubmit={false}
+                />
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Tên cá nhân</Text>
+                <TextInput
+                  style={styles.textInput}
+                  value={customerInfo.individualName}
+                  onChangeText={(value) =>
+                    handleCustomerInfoChange("individualName", value)
+                  }
+                  placeholder="Nhập tên cá nhân"
+                  placeholderTextColor="#999"
+                  returnKeyType="next"
+                  blurOnSubmit={false}
+                />
+              </View>
+            </View>
+          ) : (
+            // Form doanh nghiệp
+            <View>
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Mã số thuế</Text>
+                <View style={styles.taxCodeInputContainer}>
+                  <TextInput
+                    style={[styles.textInput, styles.taxCodeInput]}
+                    value={customerInfo.taxCodeBusiness}
+                    onChangeText={(value) =>
+                      handleCustomerInfoChange("taxCodeBusiness", value)
+                    }
+                    placeholder="Nhập mã số thuế"
+                    keyboardType="numeric"
+                    placeholderTextColor="#999"
+                    returnKeyType="next"
+                    blurOnSubmit={false}
+                  />
+                  <TouchableOpacity
+                    style={styles.taxLookupButton}
+                    onPress={handleTaxLookup}
+                  >
+                    <Text style={styles.taxLookupButtonText}>
+                      Lấy từ cơ quan thuế
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Tên doanh nghiệp</Text>
+                <TextInput
+                  style={styles.textInput}
+                  value={customerInfo.businessName}
+                  onChangeText={(value) =>
+                    handleCustomerInfoChange("businessName", value)
+                  }
+                  placeholder="Nhập tên doanh nghiệp"
+                  placeholderTextColor="#999"
+                  returnKeyType="next"
+                  blurOnSubmit={false}
+                />
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Địa chỉ</Text>
+                <TextInput
+                  style={styles.textInput}
+                  value={customerInfo.businessAddress}
+                  onChangeText={(value) =>
+                    handleCustomerInfoChange("businessAddress", value)
+                  }
+                  placeholder="Nhập địa chỉ doanh nghiệp"
+                  placeholderTextColor="#999"
+                  returnKeyType="next"
+                  blurOnSubmit={false}
+                />
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Email</Text>
+                <TextInput
+                  style={styles.textInput}
+                  value={customerInfo.businessEmail}
+                  onChangeText={(value) =>
+                    handleCustomerInfoChange("businessEmail", value)
+                  }
+                  placeholder="Nhập email doanh nghiệp"
+                  keyboardType="email-address"
+                  placeholderTextColor="#999"
+                  returnKeyType="done"
+                  blurOnSubmit={true}
+                />
+              </View>
+            </View>
+          )}
+        </View>
+      </View>
+    );
+  };
+
   return (
     <Modal
       visible={visible}
@@ -284,7 +543,11 @@ export default function PaymentModal({
       presentationStyle="pageSheet"
       onRequestClose={onClose}
     >
-      <View style={styles.container}>
+      <KeyboardAvoidingView
+        style={styles.container}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 20}
+      >
         {/* Header */}
         <View style={[styles.header, { paddingTop: 20 }]}>
           <Text style={styles.headerTitle}>Thanh toán</Text>
@@ -293,7 +556,11 @@ export default function PaymentModal({
           </TouchableOpacity>
         </View>
 
-        <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+        <ScrollView
+          style={styles.content}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
           {/* Total Amount */}
           <View style={styles.totalSection}>
             <View style={styles.totalAmountContainer}>
@@ -381,6 +648,9 @@ export default function PaymentModal({
 
           {/* Suggested Amounts */}
           {/* {renderSuggestedAmounts()} */}
+
+          {/* Type of invoice to be issued */}
+          {renderTypeOfInvoice()}
         </ScrollView>
 
         {/* Footer */}
@@ -400,7 +670,7 @@ export default function PaymentModal({
             <Text style={styles.paymentButtonText}>Thanh toán</Text>
           </TouchableOpacity>
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
@@ -431,6 +701,7 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
     paddingHorizontal: 20,
+    paddingBottom: 100,
   },
   totalSection: {
     backgroundColor: "#fff",
@@ -629,7 +900,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 20,
     marginTop: 8,
-    marginBottom: 16,
+    marginBottom: 8,
   },
   bankSectionHeader: {
     flexDirection: "row",
@@ -739,5 +1010,102 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: 16,
     flex: 1,
+  },
+  typeOfInvoiceContainer: {
+    backgroundColor: "#fff",
+    borderRadius: 12,
+    padding: 20,
+    marginBottom: 16,
+  },
+  typeOfInvoiceRadioButtonContainer: {
+    flexDirection: "row",
+    gap: 12,
+    alignItems: "center",
+    justifyContent: "flex-start",
+    width: "100%",
+    // marginBottom: 16,
+  },
+  typeOfInvoiceRadioButton: {
+    // paddingHorizontal: 12,
+    // paddingVertical: 12,
+    // borderRadius: 8,
+    // borderWidth: 1,
+    // borderColor: "#dee2e6",
+    // alignItems: "center",
+    // justifyContent: "center",
+    // width: "50%",
+    // backgroundColor: "#fff",
+  },
+  typeOfInvoiceRadioButtonSelected: {
+    // backgroundColor: "#e9ecef",
+  },
+  typeOfInvoiceRadioButtonText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#000",
+  },
+  typeOfInvoiceRadioButtonTextSelected: {
+    fontWeight: "bold",
+  },
+  radioButtonInner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  radioCircle: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#dee2e6",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  radioCircleSelected: {
+    borderColor: "#198754",
+  },
+  radioInnerCircle: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: "#198754",
+  },
+  customerFormContainer: {
+    marginTop: 20,
+  },
+  inputGroup: {
+    marginBottom: 16,
+  },
+  textInput: {
+    borderWidth: 1,
+    borderColor: "#dee2e6",
+    borderRadius: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    fontSize: 16,
+    backgroundColor: "#fff",
+  },
+  taxCodeInputContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  taxCodeInput: {
+    flex: 1,
+  },
+  taxLookupButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#198754",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#f8f9fa",
+  },
+  taxLookupButtonText: {
+    color: "#198754",
+    fontWeight: "600",
+    fontSize: 14,
   },
 });

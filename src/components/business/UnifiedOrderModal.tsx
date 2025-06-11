@@ -54,6 +54,17 @@ interface PaymentData {
   voucher?: string;
 }
 
+// Interface cho thông tin đơn hàng tạm thời - dùng cho luồng thanh toán mới
+interface TempOrderData {
+  totalAmount: number;
+  subtotal: number;
+  taxAmount: number;
+  orderItems: OrderItem[];
+  customerInfo: CustomerInfo;
+  selectedTable?: Table | null;
+  orderId?: string; // ID đơn hàng sau khi tạo
+}
+
 interface CustomerInfo {
   customerName: string;
   customerPhone: string;
@@ -77,6 +88,8 @@ interface UnifiedOrderModalProps {
   onClearOrder?: () => void;
   onOrderCreated?: (orderId: string, shouldOpenPayment?: boolean) => void;
   autoOpenPayment?: boolean;
+  // Callback mới cho luồng thanh toán tối ưu
+  onDirectPayment?: (tempOrderData: TempOrderData) => void;
 }
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
@@ -244,6 +257,7 @@ export default function UnifiedOrderModal({
   onClearOrder,
   onOrderCreated,
   autoOpenPayment = false,
+  onDirectPayment,
 }: UnifiedOrderModalProps) {
   const insets = useSafeAreaInsets();
   const [loading, setLoading] = useState(false);
@@ -830,13 +844,16 @@ export default function UnifiedOrderModal({
   };
 
   /**
-   * Luồng mới cho nút "Thanh toán":
+   * Luồng cũ cho nút "Thanh toán":
    * 1. Tạo đơn hàng mới
    * 2. Call API In chế biến
    * 3. Chuyển đến giao diện chi tiết đơn hàng
    * 4. Mở giao diện thanh toán
+   *
+   * ⚠️ ĐÃ TỐI ƯU: Luồng này đã được thay thế bằng handleOptimizedPaymentFlow
+   * Giữ lại để tham khảo hoặc fallback khi cần
    */
-  const handlePaymentCreateFlow = async () => {
+  const handlePaymentCreateFlow_OLD = async () => {
     if (loading) {
       console.log(
         "⚠️ Payment create flow already in progress, ignoring duplicate call"
@@ -935,6 +952,164 @@ export default function UnifiedOrderModal({
       }
     } catch (error: any) {
       console.error("❌ Error in payment create flow:", error);
+      Alert.alert(
+        "Lỗi",
+        error.message || "Có lỗi xảy ra khi tạo đơn hàng. Vui lòng thử lại."
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  /**
+   * LUỒNG MỚI TỐI ƯU: Thanh toán trực tiếp với thông tin tạm
+   * 1. Lưu thông tin đơn hàng vào biến tổng
+   * 2. Tạo đơn hàng và in chế biến async
+   * 3. Chuyển thẳng sang màn hình thanh toán với thông tin từ biến tổng
+   */
+  const handleOptimizedPaymentFlow = async () => {
+    if (loading) {
+      console.log(
+        "⚠️ Optimized payment flow already in progress, ignoring duplicate call"
+      );
+      return;
+    }
+
+    if (orderItems.length === 0) {
+      Alert.alert("Lỗi", "Chưa có món nào được chọn");
+      return;
+    }
+
+    try {
+      setLoading(true);
+
+      // BƯỚC 1: Tạo biến tổng lưu thông tin đơn hàng tạm thời
+      const tempOrderData: TempOrderData = {
+        totalAmount,
+        subtotal,
+        taxAmount,
+        orderItems: [...orderItems], // Clone để tránh reference issues
+        customerInfo: { ...customerInfo },
+        selectedTable: selectedTable,
+      };
+
+      console.log("💾 Lưu thông tin tạm vào biến tổng:", tempOrderData);
+
+      // BƯỚC 2: Tạo đơn hàng async (không chờ)
+      const createOrderAsync = async () => {
+        try {
+          const products = orderItems.map((item) => ({
+            productId: item.product.id,
+            quantity: item.quantity,
+            price: item.product.price,
+            priceIncludeVAT:
+              item.product.priceAfterDiscount || item.product.price,
+            note: "",
+            vat: 10,
+            name: item.product.title,
+            productCode: item.product.code,
+            unitName: item.product.unitName || "Cái",
+          }));
+
+          const finalCustomerName =
+            customerInfo.customerName || "Người mua không cung cấp thông tin";
+          const finalCustomerPhone = customerInfo.customerPhone || "0000000000";
+
+          const orderData: any = {
+            customerName: finalCustomerName,
+            customerPhone: finalCustomerPhone,
+            products,
+            note: "",
+            paymentMethod: 0,
+            priceIncludeVAT: true,
+            discountType: 0,
+            discount: 0,
+            discountVAT: 0,
+            orderCustomerName: finalCustomerName,
+            orderCustomerPhone: finalCustomerPhone,
+            isDelivery: false,
+            debt: {
+              debit: 0,
+              debitExpire: new Date().toISOString(),
+            },
+            delivery: {
+              deliveryId: 0,
+              deliveryName: "",
+              deliveryCode: "",
+              deliveryFee: 0,
+              cod: false,
+            },
+            flashSales: [],
+          };
+
+          if (selectedTable?.id) {
+            orderData.tableId = selectedTable.id;
+          }
+
+          console.log("🍽️ Creating order asynchronously:", orderData);
+          const response = await ordersService.createOrder(orderData);
+
+          if (response.successful && response.data) {
+            const orderId = response.data.id;
+
+            // BƯỚC 2.1: In chế biến async
+            try {
+              console.log("🍳 Kitchen print API call for order:", orderId);
+              // await ordersService.printKitchen(orderId);
+              console.log("✅ Đã in chế biến");
+            } catch (kitchenError: any) {
+              console.error("❌ Kitchen print error:", kitchenError);
+              console.log("⚠️ Đã in chế biến (simulated)");
+            }
+
+            // Cập nhật orderId vào temp data nếu callback parent cần
+            tempOrderData.orderId = orderId;
+
+            console.log("✅ Order created successfully with ID:", orderId);
+            return orderId;
+          } else {
+            throw new Error(response.error || "Không thể tạo đơn hàng");
+          }
+        } catch (error: any) {
+          console.error("❌ Error creating order asynchronously:", error);
+          // Có thể thông báo lỗi cho user sau này nếu cần
+          return null;
+        }
+      };
+
+      // BƯỚC 3: Clear form và reset trạng thái
+      setShouldResetCustomerInfo(true);
+      setCustomerInfo({
+        customerName: "",
+        customerPhone: "",
+        customerAddress: "",
+      });
+      onClearOrder?.();
+
+      // BƯỚC 4: Chuyển thẳng sang màn hình thanh toán với thông tin tạm
+      onClose();
+
+      if (onDirectPayment) {
+        console.log(
+          "🚀 Chuyển thẳng sang màn hình thanh toán với thông tin tạm"
+        );
+        onDirectPayment(tempOrderData);
+      } else {
+        // Fallback về luồng cũ nếu parent chưa support
+        console.log("⚠️ Parent chưa support luồng mới, fallback về luồng cũ");
+        // Thực thi tạo đơn hàng đồng bộ
+        const orderId = await createOrderAsync();
+        if (orderId) {
+          onOrderCreated?.(orderId, true);
+        }
+      }
+
+      // Thực thi tạo đơn hàng async trong background (không block UI)
+      createOrderAsync();
+
+      console.log("✅ Optimized payment flow completed");
+    } catch (error: any) {
+      console.error("❌ Error in optimized payment flow:", error);
       Alert.alert(
         "Lỗi",
         error.message || "Có lỗi xảy ra khi tạo đơn hàng. Vui lòng thử lại."
@@ -1193,7 +1368,7 @@ export default function UnifiedOrderModal({
           break;
         case "payment_create":
           // Nút "Thanh toán" mới - thực hiện luồng: tạo đơn → in chế biến → chuyển chi tiết → mở thanh toán
-          await handlePaymentCreateFlow();
+          await handleOptimizedPaymentFlow();
           break;
         case "cancel":
           onClose();

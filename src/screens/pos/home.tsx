@@ -20,6 +20,7 @@ import AreasTablesView from "@/src/components/business/AreasTablesView";
 import CategoryBottomSheet from "@/src/components/business/CategoryBottomSheet";
 import OrderBottomSheet from "@/src/components/business/OrderBottomSheet";
 import OrdersView from "@/src/components/business/OrdersView";
+import PaymentModal from "@/src/components/business/PaymentModal";
 import UnifiedOrderModal from "@/src/components/business/UnifiedOrderModal";
 import AppBar from "@/src/components/common/AppBar";
 import DrawerMenu from "@/src/components/common/DrawerMenu";
@@ -38,6 +39,31 @@ enum TabType {
   TABLES = "tables",
   MENU = "menu",
   ORDERS = "orders",
+}
+
+// Interface cho thông tin đơn hàng tạm thời - dùng cho luồng thanh toán mới
+interface TempOrderData {
+  totalAmount: number;
+  subtotal: number;
+  taxAmount: number;
+  orderItems: OrderItem[];
+  customerInfo: {
+    customerName: string;
+    customerPhone: string;
+    customerAddress: string;
+  };
+  selectedTable?: Table | null;
+  orderId?: string;
+}
+
+// Interface cho dữ liệu thanh toán
+interface PaymentData {
+  totalAmount: number;
+  customerPaid: number;
+  change: number;
+  paymentMethod: "cash" | "bank";
+  bankCode?: string;
+  voucher?: string;
 }
 
 export default function HomeScreen() {
@@ -78,6 +104,12 @@ export default function HomeScreen() {
     useState(false);
   const [autoOpenPaymentForNewOrder, setAutoOpenPaymentForNewOrder] =
     useState(false);
+
+  // State cho luồng thanh toán mới tối ưu
+  const [paymentModalVisible, setPaymentModalVisible] = useState(false);
+  const [tempOrderData, setTempOrderData] = useState<TempOrderData | null>(
+    null
+  );
 
   useEffect(() => {
     loadInitialData();
@@ -949,6 +981,70 @@ export default function HomeScreen() {
     }
   };
 
+  /**
+   * LUỒNG MỚI TỐI ƯU: Xử lý thanh toán trực tiếp với thông tin tạm
+   * Được gọi từ UnifiedOrderModal khi sử dụng handleOptimizedPaymentFlow
+   */
+  const handleDirectPayment = (orderData: TempOrderData) => {
+    console.log("🚀 Nhận thông tin đơn hàng tạm để thanh toán:", orderData);
+
+    // Lưu thông tin đơn hàng tạm
+    setTempOrderData(orderData);
+
+    // Mở PaymentModal trực tiếp
+    setPaymentModalVisible(true);
+
+    console.log("✅ Đã mở màn hình thanh toán với thông tin tạm");
+  };
+
+  /**
+   * Xử lý khi thanh toán hoàn tất (dành cho luồng mới)
+   */
+  const handlePaymentComplete = async (paymentData: PaymentData) => {
+    try {
+      if (tempOrderData?.orderId) {
+        // Nếu đã có orderId, gọi API thanh toán
+        console.log("💰 Đang thanh toán đơn hàng:", tempOrderData.orderId);
+        await ordersService.receiveOrder(tempOrderData.orderId);
+
+        Alert.alert(
+          "Thành công",
+          `Đã thanh toán đơn hàng\nTiền khách trả: ${paymentData.customerPaid.toLocaleString(
+            "vi-VN"
+          )}\nTiền thối lại: ${Math.abs(paymentData.change).toLocaleString(
+            "vi-VN"
+          )}`
+        );
+
+        // Đóng modal và refresh data
+        setPaymentModalVisible(false);
+        setTempOrderData(null);
+        onRefresh();
+
+        console.log("✅ Thanh toán hoàn tất thành công");
+      } else {
+        // Nếu chưa có orderId, chờ order được tạo xong
+        console.log("⏳ Đang chờ đơn hàng được tạo...");
+        Alert.alert(
+          "Đang xử lý",
+          "Đơn hàng đang được tạo. Vui lòng đợi trong giây lát...",
+          [
+            {
+              text: "OK",
+              onPress: () => {
+                setPaymentModalVisible(false);
+                setTempOrderData(null);
+              },
+            },
+          ]
+        );
+      }
+    } catch (error: any) {
+      console.error("❌ Lỗi khi thanh toán:", error);
+      Alert.alert("Lỗi", `Không thể thanh toán đơn hàng: ${error.message}`);
+    }
+  };
+
   // Render các tab
   const renderTabContent = () => {
     switch (activeTab) {
@@ -1144,6 +1240,18 @@ export default function HomeScreen() {
           isPaid={modalIsPaid}
           title={modalTitle}
           autoOpenPayment={autoOpenPaymentForNewOrder}
+          onDirectPayment={handleDirectPayment}
+        />
+
+        {/* Payment Modal cho luồng mới tối ưu */}
+        <PaymentModal
+          visible={paymentModalVisible}
+          totalAmount={tempOrderData?.totalAmount || 0}
+          onClose={() => {
+            setPaymentModalVisible(false);
+            setTempOrderData(null);
+          }}
+          onPayment={handlePaymentComplete}
         />
       </View>
     </SafeAreaView>
