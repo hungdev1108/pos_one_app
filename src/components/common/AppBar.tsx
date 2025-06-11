@@ -53,7 +53,7 @@ export default function AppBar({ onMenuPress, onReloadPress }: AppBarProps) {
         <View style={styles.logoContainer}>
           <Image
             style={styles.logo}
-            source={require("../../../assets/images/POS-ONE-LOGO.png")}
+            source={require("../../../assets/images/Logo-one-purple_new.png")}
           />
         </View>
 

@@ -26,7 +26,7 @@ const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const DRAWER_WIDTH = SCREEN_WIDTH * 0.8;
 
 // Pre-load logo để tránh loading mỗi lần render
-const LOGO_SOURCE = require("../../../assets/images/POS-ONE-LOGO.png");
+const LOGO_SOURCE = require("../../../assets/images/Logo-one-purple_new.png");
 
 export default function DrawerMenu({
   visible,

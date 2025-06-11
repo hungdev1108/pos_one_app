@@ -3,6 +3,7 @@ import React, { useEffect, useState } from "react";
 import {
   Alert,
   Dimensions,
+  Image,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -88,6 +89,11 @@ export default function PaymentModal({
     businessAddress: "",
     businessEmail: "",
   });
+  const [isTaxLookupLoading, setIsTaxLookupLoading] = useState(false);
+
+  // State cho QR Code popup
+  const [qrModalVisible, setQrModalVisible] = useState(false);
+  const [qrImageUrl, setQrImageUrl] = useState("");
 
   // Reset state when modal opens
   useEffect(() => {
@@ -108,6 +114,9 @@ export default function PaymentModal({
         businessAddress: "",
         businessEmail: "",
       });
+      setIsTaxLookupLoading(false);
+      setQrModalVisible(false);
+      setQrImageUrl("");
     }
   }, [visible]);
 
@@ -199,11 +208,40 @@ export default function PaymentModal({
       Alert.alert("Thông báo", "Bạn chưa nhập mã số thuế.");
       return;
     }
-    // TODO: Implement tax code lookup logic
-    Alert.alert(
-      "Thông báo",
-      "Chức năng tra cứu thông tin từ cơ quan thuế đang được phát triển."
-    );
+
+    if (isTaxLookupLoading) {
+      return; // Prevent multiple calls while loading
+    }
+
+    const taxCode = customerInfo.taxCodeBusiness.trim();
+
+    // Mock data cho mã số thuế 1234567890
+    if (taxCode === "1234567890") {
+      setIsTaxLookupLoading(true);
+
+      // Simulate API delay and then update form
+      setTimeout(() => {
+        setCustomerInfo((prev) => ({
+          ...prev,
+          businessName: "POS ONE",
+          businessAddress: "Hồ Chí Minh",
+          businessEmail: "posone.kas@gmail.com",
+        }));
+
+        setIsTaxLookupLoading(false);
+
+        Alert.alert("Thành công", "Đã tải thông tin doanh nghiệp thành công!", [
+          { text: "OK" },
+        ]);
+      }, 1500); // 1.5 second delay to simulate API call
+    } else {
+      // Handle invalid tax code
+      Alert.alert(
+        "Không tìm thấy",
+        `Không tìm thấy thông tin cho mã số thuế: ${taxCode}\n\nThử với mã số thuế: 1234567890`,
+        [{ text: "OK" }]
+      );
+    }
   };
 
   const handleCustomerInfoChange = (
@@ -214,6 +252,18 @@ export default function PaymentModal({
       ...prev,
       [field]: value,
     }));
+  };
+
+  const handleVNPayQR = () => {
+    // Loại bỏ dấu chấm từ totalAmount và tạo URL QR
+    const amountWithoutComma = totalAmount.toString().replace(/\./g, "");
+
+    const qrUrl = `https://img.vietqr.io/image/Vietcombank-0071000731965-compact2.png?amount=${amountWithoutComma}&addInfo=89353950&accountName=POS%20ONE`;
+
+    setQrImageUrl(qrUrl);
+    setQrModalVisible(true);
+
+    console.log("🏦 VNPAY QR URL:", qrUrl);
   };
 
   const handlePayment = () => {
@@ -301,7 +351,13 @@ export default function PaymentModal({
                   { backgroundColor: bank.color },
                   selectedBank === bank.code && styles.selectedBankButton,
                 ]}
-                onPress={() => setSelectedBank(bank.code)}
+                onPress={() => {
+                  if (bank.code === "vnpay") {
+                    handleVNPayQR();
+                  } else {
+                    setSelectedBank(bank.code);
+                  }
+                }}
               >
                 <Text style={styles.bankButtonText}>{bank.name}</Text>
               </TouchableOpacity>
@@ -474,11 +530,23 @@ export default function PaymentModal({
                     blurOnSubmit={false}
                   />
                   <TouchableOpacity
-                    style={styles.taxLookupButton}
+                    style={[
+                      styles.taxLookupButton,
+                      isTaxLookupLoading && styles.taxLookupButtonDisabled,
+                    ]}
                     onPress={handleTaxLookup}
+                    disabled={isTaxLookupLoading}
                   >
-                    <Text style={styles.taxLookupButtonText}>
-                      Lấy từ cơ quan thuế
+                    <Text
+                      style={[
+                        styles.taxLookupButtonText,
+                        isTaxLookupLoading &&
+                          styles.taxLookupButtonTextDisabled,
+                      ]}
+                    >
+                      {isTaxLookupLoading
+                        ? "Đang tra cứu..."
+                        : "Lấy từ cơ quan thuế"}
                     </Text>
                   </TouchableOpacity>
                 </View>
@@ -667,10 +735,65 @@ export default function PaymentModal({
             onPress={handlePayment}
             disabled={customerPaidAmount < totalAmount}
           >
-            <Text style={styles.paymentButtonText}>Thanh toán</Text>
+            <Text style={styles.paymentButtonText}>In thanh toán</Text>
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
+
+      {/* QR Code Modal */}
+      <Modal
+        visible={qrModalVisible}
+        animationType="fade"
+        transparent={true}
+        onRequestClose={() => setQrModalVisible(false)}
+      >
+        <View style={styles.qrModalOverlay}>
+          <View style={styles.qrModalContainer}>
+            {/* Header */}
+            <View style={styles.qrModalHeader}>
+              <Text style={styles.qrModalTitle}>Thanh toán VNPAY QR</Text>
+              <TouchableOpacity
+                style={styles.qrModalCloseButton}
+                onPress={() => setQrModalVisible(false)}
+              >
+                <Ionicons name="close" size={24} color="#333" />
+              </TouchableOpacity>
+            </View>
+
+            {/* QR Code Image */}
+            <View style={styles.qrImageContainer}>
+              {qrImageUrl ? (
+                <Image
+                  source={{ uri: qrImageUrl }}
+                  style={styles.qrImage}
+                  resizeMode="contain"
+                />
+              ) : (
+                <Text>Đang tải QR code...</Text>
+              )}
+            </View>
+
+            {/* Payment Info */}
+            {/* <View style={styles.qrPaymentInfo}>
+              <Text style={styles.qrPaymentLabel}>Số tiền cần thanh toán:</Text>
+              <Text style={styles.qrPaymentAmount}>
+                {formatPrice(totalAmount)}
+              </Text>
+              <Text style={styles.qrPaymentInstruction}>
+                Sử dụng ứng dụng ngân hàng để quét mã QR
+              </Text>
+            </View> */}
+
+            {/* Action Button */}
+            {/* <TouchableOpacity
+              style={styles.qrDoneButton}
+              onPress={() => setQrModalVisible(false)}
+            >
+              <Text style={styles.qrDoneButtonText}>Đóng</Text>
+            </TouchableOpacity> */}
+          </View>
+        </View>
+      </Modal>
     </Modal>
   );
 }
@@ -1103,9 +1226,88 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: "#f8f9fa",
   },
+  taxLookupButtonDisabled: {
+    backgroundColor: "#a5d6a7",
+  },
   taxLookupButtonText: {
     color: "#198754",
     fontWeight: "600",
     fontSize: 14,
+  },
+  taxLookupButtonTextDisabled: {
+    color: "#777",
+  },
+  qrModalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  qrModalContainer: {
+    backgroundColor: "#fff",
+    padding: 20,
+    borderRadius: 12,
+    width: "80%",
+    maxWidth: 400,
+    alignItems: "center",
+  },
+  qrModalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    width: "100%",
+  },
+  qrModalTitle: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: "#333",
+  },
+  qrModalCloseButton: {
+    padding: 4,
+  },
+  qrImageContainer: {
+    marginTop: 20,
+    // marginBottom: 10,
+    width: "100%",
+    height: 300,
+    borderRadius: 8,
+    overflow: "hidden",
+    // backgroundColor: "#f0f0f0",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  qrImage: {
+    width: "100%",
+    height: "100%",
+  },
+  qrPaymentInfo: {
+    alignItems: "center",
+    marginBottom: 20,
+  },
+  qrPaymentLabel: {
+    fontSize: 16,
+    fontWeight: "bold",
+    color: "#333",
+    marginBottom: 8,
+  },
+  qrPaymentAmount: {
+    fontSize: 28,
+    fontWeight: "bold",
+    color: "#198754",
+  },
+  qrPaymentInstruction: {
+    fontSize: 14,
+    color: "#666",
+  },
+  qrDoneButton: {
+    padding: 12,
+    borderRadius: 8,
+    backgroundColor: "#198754",
+    alignItems: "center",
+  },
+  qrDoneButtonText: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "bold",
   },
 });
