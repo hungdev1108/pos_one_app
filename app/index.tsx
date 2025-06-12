@@ -17,7 +17,7 @@ export default function InitialScreen() {
       const isLoggedIn = await authService.isLoggedIn();
 
       if (isLoggedIn) {
-        router.replace("/(tabs)");
+        router.replace("/main");
       } else {
         router.replace("/login");
       }

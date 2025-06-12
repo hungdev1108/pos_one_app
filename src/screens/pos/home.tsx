@@ -1,4 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
+import { router } from "expo-router";
 import React, { useEffect, useState } from "react";
 import { Alert, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -654,21 +655,20 @@ export default function HomeScreen() {
   };
 
   const handleReloadPress = async () => {
-    setRefreshing(true);
-
-    // Reload data based on current tab
-    if (activeTab === TabType.TABLES) {
-      await loadAreas();
-    } else if (activeTab === TabType.MENU) {
-      await loadInitialData();
-    } else if (activeTab === TabType.ORDERS) {
-      console.log("🔄 Manual reload orders data");
-    }
-
-    setRefreshing(false);
-    Alert.alert("Thành công", "Đã cập nhật thông tin mới nhất.", [
-      { text: "OK" },
-    ]);
+    Alert.alert(
+      "Quay lại trang chính",
+      "Bạn có muốn quay lại trang chính không?",
+      [
+        {
+          text: "Hủy",
+          style: "cancel",
+        },
+        {
+          text: "Quay lại",
+          onPress: () => router.replace("/main"),
+        },
+      ]
+    );
   };
 
   const handleDrawerClose = () => {

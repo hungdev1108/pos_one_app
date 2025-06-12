@@ -1,5 +1,4 @@
 import { authService, LoginRequest } from "@/src/api";
-import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import React, { useRef, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
@@ -64,7 +63,7 @@ export default function LoginScreen() {
         Alert.alert("Thành công", "Đăng nhập thành công!", [
           {
             text: "OK",
-            onPress: () => router.replace("/(tabs)"),
+            onPress: () => router.replace("/main"),
           },
         ]);
       } else {
@@ -125,7 +124,7 @@ export default function LoginScreen() {
                 {/* Logo */}
                 <View style={styles.logoContainer}>
                   <Image
-                    source={require("../assets/images/POS-ONE-LOGO.png")}
+                    source={require("../assets/images/One-Green-no-backg.png")}
                     style={styles.logo}
                   />
                 </View>
@@ -208,7 +207,7 @@ export default function LoginScreen() {
                 </View>
 
                 {/* Remember Me Checkbox */}
-                <TouchableOpacity
+                {/* <TouchableOpacity
                   style={styles.checkboxContainer}
                   onPress={toggleRememberMe}
                   disabled={isLoading}
@@ -224,7 +223,7 @@ export default function LoginScreen() {
                     )}
                   </View>
                   <Text style={styles.checkboxLabel}>Ghi nhớ đăng nhập</Text>
-                </TouchableOpacity>
+                </TouchableOpacity> */}
 
                 {/* Buttons */}
                 <View style={styles.buttonContainer}>
@@ -278,7 +277,7 @@ const styles = StyleSheet.create({
   },
   logo: {
     width: 200,
-    height: 100,
+    height: 120,
     objectFit: "contain",
     shadowColor: "#fff",
     shadowOffset: { width: 0, height: 0 },
@@ -406,7 +405,7 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingVertical: 14,
     borderRadius: 8,
-    backgroundColor: "#4CAF50",
+    backgroundColor: "#198754",
     alignItems: "center",
   },
   loginButtonDisabled: {
@@ -427,7 +426,7 @@ const styles = StyleSheet.create({
   companyName: {
     fontSize: 18,
     color: "#5470ff",
-    fontWeight: "bold",
+    fontWeight: "600",
     marginBottom: 8,
   },
   contactInfo: {

@@ -63,7 +63,7 @@ export default function AppBar({ onMenuPress, onReloadPress }: AppBarProps) {
           onPress={onReloadPress}
           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
         >
-          <Ionicons name="refresh" size={24} color="#666" />
+          <Ionicons name="arrow-back" size={24} color="#666" />
         </TouchableOpacity>
       </View>
     </>
