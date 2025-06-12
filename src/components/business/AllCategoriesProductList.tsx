@@ -28,7 +28,7 @@ interface AllCategoriesProductListProps {
 }
 
 const { width } = Dimensions.get("window");
-const numColumns = 2;
+const numColumns = 4;
 const ITEM_WIDTH = (width - 48) / numColumns;
 
 const AllCategoriesProductList: React.FC<AllCategoriesProductListProps> = ({

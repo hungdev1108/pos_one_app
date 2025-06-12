@@ -23,7 +23,13 @@ export default function AppBar({ onMenuPress, onReloadPress }: AppBarProps) {
       <StatusBar style="light" />
       {/* Status bar background for Android edge-to-edge */}
       {Platform.OS === "android" && (
-        <View style={[styles.statusBarBackground, { height: insets.top }]} />
+        <View
+          style={[styles.statusBarBackgroundAndroid, { height: insets.top }]}
+        />
+      )}
+      {/* Status bar background for iOS */}
+      {Platform.OS === "ios" && (
+        <View style={[styles.statusBarBackgroundIos, { height: insets.top }]} />
       )}
       <View
         style={[
@@ -71,8 +77,11 @@ export default function AppBar({ onMenuPress, onReloadPress }: AppBarProps) {
 }
 
 const styles = StyleSheet.create({
-  statusBarBackground: {
-    backgroundColor: "#198754",
+  statusBarBackgroundAndroid: {
+    backgroundColor: "#fff",
+  },
+  statusBarBackgroundIos: {
+    backgroundColor: "#fff",
   },
   logoContainer: {
     flex: 1,

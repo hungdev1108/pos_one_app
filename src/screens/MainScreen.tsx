@@ -17,7 +17,7 @@ const Logo = () => {
   return (
     <View>
       <Image
-        source={require("../../assets/images/Logo-one-purple_new.png")}
+        source={require("../../assets/images/One-Green-no-backg.png")}
         style={styles.logo}
       />
     </View>
@@ -56,10 +56,12 @@ const MainScreen: React.FC<MainScreenProps> = ({ username = "Daco" }) => {
         <View style={styles.welcomeSection}>
           <Text style={styles.sparkleIcon}>✨</Text>
           <Text style={styles.goodDayText}>
-            Good Day, <Text style={styles.usernameText}>{username}</Text>
+            Xin chào, <Text style={styles.usernameText}>{username}</Text>
           </Text>
-          <Text style={styles.welcomeText}>Welcome to PosOne mobile</Text>
-          <Text style={styles.subWelcomeText}>Please select your product</Text>
+          <Text style={styles.welcomeText}>
+            Chúc bạn có trải nghiệm tuyệt vời cùng POS ONE
+          </Text>
+          <Text style={styles.subWelcomeText}>Hãy chọn ứng dụng của bạn</Text>
         </View>
 
         {/* Main Actions */}
@@ -71,7 +73,10 @@ const MainScreen: React.FC<MainScreenProps> = ({ username = "Daco" }) => {
               activeOpacity={0.8}
             >
               <View style={styles.productIcon}>
-                <Text style={styles.productIconText}>POS</Text>
+                <Image
+                  source={require("../../assets/images/favicon_new.png")}
+                  style={styles.productIconImage}
+                />
               </View>
               <Text style={styles.productTitle}>Bán hàng</Text>
             </TouchableOpacity>
@@ -82,7 +87,10 @@ const MainScreen: React.FC<MainScreenProps> = ({ username = "Daco" }) => {
               activeOpacity={0.8}
             >
               <View style={styles.productIcon}>
-                <Text style={styles.productIconText}>POS</Text>
+                <Image
+                  source={require("../../assets/images/favicon_new.png")}
+                  style={styles.productIconImage}
+                />
               </View>
               <Text style={styles.productSubTitle}>Quản lý</Text>
             </TouchableOpacity>
@@ -93,7 +101,10 @@ const MainScreen: React.FC<MainScreenProps> = ({ username = "Daco" }) => {
               activeOpacity={0.8}
             >
               <View style={styles.productIcon}>
-                <Text style={styles.productIconText}>POS</Text>
+                <Image
+                  source={require("../../assets/images/favicon_new.png")}
+                  style={styles.productIconImage}
+                />
               </View>
               <Text style={styles.productSubTitle}>KOM</Text>
             </TouchableOpacity>
@@ -222,6 +233,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 8,
+  },
+  productIconImage: {
+    width: 25,
+    height: 25,
+    padding: 5,
   },
   productIconText: {
     color: "#1e40af",
