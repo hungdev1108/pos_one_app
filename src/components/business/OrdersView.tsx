@@ -37,8 +37,8 @@ enum OrderTabType {
 const { width } = Dimensions.get("window");
 
 const isTablet = width >= 720;
-const numColumns = isTablet ? 2 : 1;
-const ITEM_WIDTH = isTablet ? (width - 48) / 2 : width - 32;
+const numColumns = isTablet ? 3 : 1;
+const ITEM_WIDTH = isTablet ? (width - 48) / 3 : width - 32;
 
 const OrdersView: React.FC<OrdersViewProps> = ({
   onOrderPress,
@@ -661,6 +661,7 @@ const styles = StyleSheet.create({
   },
   actionContainer: {
     flexDirection: "row",
+    justifyContent: "flex-end",
     padding: 16,
     paddingTop: 0,
     flexWrap: "wrap",
@@ -673,7 +674,6 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: 6,
     borderWidth: 1,
-    marginRight: 8,
     marginBottom: 8,
   },
   detailButton: {

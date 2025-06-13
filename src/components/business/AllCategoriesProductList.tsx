@@ -645,7 +645,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
   },
   tabletSidebar: {
-    width: 120,
+    width: 130,
     backgroundColor: "#f8f9fa",
     borderLeftWidth: 1,
     borderLeftColor: "#e9ecef",
@@ -692,10 +692,11 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   tabletSelectedCategoryTitle: {
-    fontSize: isTablet ? 18 : 24,
+    fontSize: isTablet ? 14 : 24,
     fontWeight: "bold",
     color: "#333",
-    marginBottom: 20,
+    marginBottom: isTablet ? 10 : 20,
+    marginTop: isTablet ? 10 : 0,
   },
   tabletProductsGrid: {
     flexDirection: "row",

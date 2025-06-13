@@ -818,7 +818,7 @@ export default function HomeScreen() {
             priceIncludeVAT: currentPrice,
             unitName: product.unitName || "Cái",
             vat: 10,
-            name: product.title, // Thêm tên sản phẩm từ trường title
+            name: product.title.trim(), // Thêm tên sản phẩm từ trường title và trim khoảng trắng
             productCode: product.code, // Sử dụng mã sản phẩm thực từ trường code
           });
         }
@@ -869,7 +869,7 @@ export default function HomeScreen() {
           ...prevItems,
           {
             id: product.id,
-            title: product.title,
+            title: product.title.trim(),
             price: currentPrice,
             quantity: 1,
             product: product,

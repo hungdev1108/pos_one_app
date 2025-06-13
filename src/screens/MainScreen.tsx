@@ -1,9 +1,9 @@
 import { router } from "expo-router";
 import React from "react";
 import {
-  Alert,
   Dimensions,
   Image,
+  Linking,
   SafeAreaView,
   ScrollView,
   StyleSheet,
@@ -34,11 +34,11 @@ const MainScreen: React.FC<MainScreenProps> = ({ username = "Daco" }) => {
   };
 
   const handleManagementPress = () => {
-    Alert.alert("Thông báo", "Tính năng đang được cập nhật...");
+    Linking.openURL("https://posone.vn");
   };
 
   const handleKOMPress = () => {
-    Alert.alert("Thông báo", "Tính năng đang được cập nhật...");
+    Linking.openURL("https://kom.kas.asia/");
   };
 
   return (

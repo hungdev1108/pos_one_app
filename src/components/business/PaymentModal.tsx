@@ -50,16 +50,17 @@ interface CustomerInvoiceInfo {
 }
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
+const isTablet = SCREEN_WIDTH >= 720;
 
 const SUGGESTED_AMOUNTS = [10000, 20000, 50000, 100000, 200000, 500000];
 
 const BANK_OPTIONS = [
   { code: "vnpay", name: "VNPAY QR", color: "#005aaa" },
   { code: "vnpay_pos", name: "VNPAY POS", color: "#ed1c24" },
-  { code: "vietqr", name: "VietQR", color: "#aa362e" },
-  { code: "momo", name: "MOMO", color: "#A50064" },
-  { code: "acb", name: "ACB", color: "#10adef" },
-  { code: "mbbank", name: "MBBANK", color: "#009BDA" },
+  // { code: "vietqr", name: "VietQR", color: "#aa362e" },
+  // { code: "momo", name: "MOMO", color: "#A50064" },
+  // { code: "acb", name: "ACB", color: "#10adef" },
+  // { code: "mbbank", name: "MBBANK", color: "#009BDA" },
 ];
 
 export default function PaymentModal({
@@ -311,7 +312,10 @@ export default function PaymentModal({
           {SUGGESTED_AMOUNTS.map((amount, index) => (
             <TouchableOpacity
               key={index}
-              style={styles.suggestedAmountButton}
+              style={[
+                styles.suggestedAmountButton,
+                { backgroundColor: "#f8f9fa" },
+              ]}
               onPress={() => handleAmountSuggestion(amount)}
             >
               <Text style={styles.suggestedAmountText}>
@@ -368,7 +372,10 @@ export default function PaymentModal({
             {/* Grid for suggested amounts */}
             <View style={styles.exactPaymentRow}>
               <TouchableOpacity
-                style={styles.exactPaymentButton}
+                style={[
+                  styles.exactPaymentButton,
+                  { backgroundColor: "#4dd4ac" },
+                ]}
                 onPress={() => handleAmountSuggestion(totalAmount, true)}
               >
                 <Text style={styles.exactPaymentLabel}>
@@ -383,7 +390,10 @@ export default function PaymentModal({
                 <TouchableOpacity
                   onPress={() => handleAmountSuggestion(amount)}
                   key={index}
-                  style={styles.suggestedAmountButton}
+                  style={[
+                    styles.suggestedAmountButton,
+                    { backgroundColor: "#a6e9d5" },
+                  ]}
                 >
                   <Text style={styles.suggestedAmountText}>
                     {formatNumber(amount)}
@@ -405,6 +415,97 @@ export default function PaymentModal({
   };
 
   // Render Type of invoice to be issued
+  // Render payment information section (for column 1 on tablet)
+  const renderPaymentInfo = () => {
+    return (
+      <View
+        style={[
+          styles.paymentInfoContainer,
+          isTablet && styles.paymentInfoTablet,
+        ]}
+      >
+        {/* Total Amount */}
+        <View style={styles.totalSection}>
+          <View style={styles.totalAmountContainer}>
+            <Text style={styles.inputLabel}>Tổng phải thu</Text>
+            <View style={styles.totalAmountContainer}>
+              <Text style={styles.totalAmount}>{formatPrice(totalAmount)}</Text>
+            </View>
+          </View>
+          {/* Customer Payment Input */}
+
+          <View style={styles.customerPaymentContainer}>
+            <Text style={styles.inputLabel}>Tiền khách trả</Text>
+          </View>
+          <View style={styles.customerPaymentInputContainer}>
+            {customerPaid ? (
+              <TouchableOpacity
+                style={styles.clearIcon}
+                onPress={handleClearInput}
+              >
+                <Ionicons name="close-circle" size={26} color="red" />
+              </TouchableOpacity>
+            ) : (
+              <Entypo
+                style={styles.keyboardIcon}
+                name="keyboard"
+                size={26}
+                color="#ddd"
+              />
+            )}
+            <TextInput
+              style={styles.amountInput}
+              value={customerPaid}
+              onChangeText={handleCustomerPaidChange}
+              placeholder="0"
+              keyboardType="numeric"
+              placeholderTextColor="#000"
+            />
+          </View>
+
+          {/* Change Amount */}
+          <View style={styles.changeAmountContainer}>
+            <Text style={styles.inputLabel}>Tiền thối lại</Text>
+            <View style={styles.totalAmountContainer}>
+              <Text
+                style={[
+                  styles.changeAmount,
+                  changeAmount >= 0
+                    ? styles.positiveChange
+                    : styles.negativeChange,
+                ]}
+              >
+                {changeAmount >= 0
+                  ? formatPrice(changeAmount)
+                  : `-${formatPrice(Math.abs(changeAmount))}`}
+              </Text>
+            </View>
+          </View>
+        </View>
+
+        {/* Voucher Section */}
+        <View style={styles.voucherSection}>
+          <Text style={styles.inputLabel}>Voucher</Text>
+          <View style={styles.voucherInputContainer}>
+            <TextInput
+              style={styles.voucherInput}
+              value={voucher}
+              onChangeText={setVoucher}
+              placeholder="Nhập mã giảm giá"
+              placeholderTextColor="#999"
+            />
+            <TouchableOpacity
+              style={styles.voucherCheckButton}
+              onPress={handleVoucherCheck}
+            >
+              <Text style={styles.voucherCheckText}>Kiểm tra</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    );
+  };
+
   const renderTypeOfInvoice = () => {
     return (
       <View style={styles.typeOfInvoiceContainer}>
@@ -629,100 +730,123 @@ export default function PaymentModal({
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
-          {/* Total Amount */}
-          <View style={styles.totalSection}>
-            <View style={styles.totalAmountContainer}>
-              <Text style={styles.inputLabel}>Tổng phải thu</Text>
-              <View style={styles.totalAmountContainer}>
-                <Text style={styles.totalAmount}>
-                  {formatPrice(totalAmount)}
-                </Text>
+          {isTablet ? (
+            // Layout for tablet: 2 columns
+            <>
+              <View style={styles.tabletMainContainer}>
+                {/* Column 1: Payment Info */}
+                <View style={styles.tabletColumn1}>{renderPaymentInfo()}</View>
+
+                {/* Column 2: Bank Options */}
+                <View style={styles.tabletColumn2}>
+                  {renderBankOptionsAndSuggestedAmounts()}
+                </View>
               </View>
-            </View>
-            {/* Customer Payment Input */}
 
-            <View style={styles.customerPaymentContainer}>
-              <Text style={styles.inputLabel}>Tiền khách trả</Text>
-            </View>
-            <View style={styles.customerPaymentInputContainer}>
-              {customerPaid ? (
-                <TouchableOpacity
-                  style={styles.clearIcon}
-                  onPress={handleClearInput}
-                >
-                  <Ionicons name="close-circle" size={26} color="red" />
-                </TouchableOpacity>
-              ) : (
-                <Entypo
-                  style={styles.keyboardIcon}
-                  name="keyboard"
-                  size={26}
-                  color="#ddd"
-                />
-              )}
-              <TextInput
-                style={styles.amountInput}
-                value={customerPaid}
-                onChangeText={handleCustomerPaidChange}
-                placeholder="0"
-                keyboardType="numeric"
-                placeholderTextColor="#000"
-              />
-            </View>
+              {/* Type of invoice to be issued - full width */}
+              {renderTypeOfInvoice()}
+            </>
+          ) : (
+            // Layout for mobile: original layout
+            <>
+              {/* Total Amount */}
+              <View style={styles.totalSection}>
+                <View style={styles.totalAmountContainer}>
+                  <Text style={styles.inputLabel}>Tổng phải thu</Text>
+                  <View style={styles.totalAmountContainer}>
+                    <Text style={styles.totalAmount}>
+                      {formatPrice(totalAmount)}
+                    </Text>
+                  </View>
+                </View>
+                {/* Customer Payment Input */}
 
-            {/* Change Amount */}
+                <View style={styles.customerPaymentContainer}>
+                  <Text style={styles.inputLabel}>Tiền khách trả</Text>
+                </View>
+                <View style={styles.customerPaymentInputContainer}>
+                  {customerPaid ? (
+                    <TouchableOpacity
+                      style={styles.clearIcon}
+                      onPress={handleClearInput}
+                    >
+                      <Ionicons name="close-circle" size={26} color="red" />
+                    </TouchableOpacity>
+                  ) : (
+                    <Entypo
+                      style={styles.keyboardIcon}
+                      name="keyboard"
+                      size={26}
+                      color="#ddd"
+                    />
+                  )}
+                  <TextInput
+                    style={styles.amountInput}
+                    value={customerPaid}
+                    onChangeText={handleCustomerPaidChange}
+                    placeholder="0"
+                    keyboardType="numeric"
+                    placeholderTextColor="#000"
+                  />
+                </View>
 
-            <View style={styles.changeAmountContainer}>
-              <Text style={styles.inputLabel}>Tiền thối lại</Text>
-              <View style={styles.totalAmountContainer}>
-                <Text
-                  style={[
-                    styles.changeAmount,
-                    changeAmount >= 0
-                      ? styles.positiveChange
-                      : styles.negativeChange,
-                  ]}
-                >
-                  {changeAmount >= 0
-                    ? formatPrice(changeAmount)
-                    : `-${formatPrice(Math.abs(changeAmount))}`}
-                </Text>
+                {/* Change Amount */}
+
+                <View style={styles.changeAmountContainer}>
+                  <Text style={styles.inputLabel}>Tiền thối lại</Text>
+                  <View style={styles.totalAmountContainer}>
+                    <Text
+                      style={[
+                        styles.changeAmount,
+                        changeAmount >= 0
+                          ? styles.positiveChange
+                          : styles.negativeChange,
+                      ]}
+                    >
+                      {changeAmount >= 0
+                        ? formatPrice(changeAmount)
+                        : `-${formatPrice(Math.abs(changeAmount))}`}
+                    </Text>
+                  </View>
+                </View>
               </View>
-            </View>
-          </View>
 
-          {/* Voucher Section */}
-          <View style={styles.voucherSection}>
-            <Text style={styles.inputLabel}>Voucher</Text>
-            <View style={styles.voucherInputContainer}>
-              <TextInput
-                style={styles.voucherInput}
-                value={voucher}
-                onChangeText={setVoucher}
-                placeholder="Nhập mã giảm giá"
-                placeholderTextColor="#999"
-              />
-              <TouchableOpacity
-                style={styles.voucherCheckButton}
-                onPress={handleVoucherCheck}
-              >
-                <Text style={styles.voucherCheckText}>Kiểm tra</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
+              {/* Voucher Section */}
+              <View style={styles.voucherSection}>
+                <Text style={styles.inputLabel}>Voucher</Text>
+                <View style={styles.voucherInputContainer}>
+                  <TextInput
+                    style={styles.voucherInput}
+                    value={voucher}
+                    onChangeText={setVoucher}
+                    placeholder="Nhập mã giảm giá"
+                    placeholderTextColor="#999"
+                  />
+                  <TouchableOpacity
+                    style={styles.voucherCheckButton}
+                    onPress={handleVoucherCheck}
+                  >
+                    <Text style={styles.voucherCheckText}>Kiểm tra</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
 
-          {/* Bank Options */}
-          {renderBankOptionsAndSuggestedAmounts()}
+              {/* Bank Options */}
+              {renderBankOptionsAndSuggestedAmounts()}
 
-          {/* Suggested Amounts */}
-          {/* {renderSuggestedAmounts()} */}
-
-          {/* Type of invoice to be issued */}
-          {renderTypeOfInvoice()}
+              {/* Type of invoice to be issued */}
+              {renderTypeOfInvoice()}
+            </>
+          )}
         </ScrollView>
 
         {/* Footer */}
-        <View style={[styles.footer, { paddingBottom: insets.bottom + 16 }]}>
+        <View
+          style={[
+            styles.footer,
+            { paddingBottom: isTablet ? 10 : insets.bottom + 10 },
+          ]}
+        >
           <TouchableOpacity style={styles.cancelButton} onPress={onClose}>
             <Text style={styles.cancelButtonText}>Trở lại</Text>
           </TouchableOpacity>
@@ -964,12 +1088,13 @@ const styles = StyleSheet.create({
   },
   suggestedAmountsGrid: {
     flexDirection: "row",
+    justifyContent: "space-between",
     flexWrap: "wrap",
-    gap: 8,
+    gap: isTablet ? 10 : 8,
   },
   suggestedAmountButton: {
-    borderWidth: 1,
-    borderColor: "#dee2e6",
+    // borderWidth: 1,
+    // borderColor: "#dee2e6",
     borderRadius: 8,
     paddingHorizontal: 12,
     paddingVertical: 12,
@@ -1015,7 +1140,7 @@ const styles = StyleSheet.create({
   },
   exactPaymentAmount: {
     fontSize: 20,
-    color: "#5470ff",
+    color: "#000",
     fontWeight: "bold",
   },
   bankOptionsContainer: {
@@ -1309,5 +1434,24 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: 16,
     fontWeight: "bold",
+  },
+  // Tablet responsive styles
+  paymentInfoContainer: {
+    flex: 1,
+  },
+  paymentInfoTablet: {
+    flex: 1,
+    marginRight: 8,
+  },
+  tabletMainContainer: {
+    flexDirection: "row",
+    gap: 16,
+    marginBottom: 8,
+  },
+  tabletColumn1: {
+    flex: 1,
+  },
+  tabletColumn2: {
+    flex: 1,
   },
 });

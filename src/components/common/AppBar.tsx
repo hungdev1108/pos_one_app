@@ -39,8 +39,7 @@ export default function AppBar({ onMenuPress, onReloadPress }: AppBarProps) {
         style={[
           styles.container,
           {
-            paddingTop:
-              Platform.OS === "android" && !isTablet ? 8 : insets.top + 2, // Conditional padding
+            paddingTop: isTablet ? 0 : insets.top + 1, // Conditional padding
           },
         ]}
       >

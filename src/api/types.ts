@@ -282,12 +282,16 @@ export interface OrdersRequestParams {
 export interface OrderDetailProduct {
   id: string;
   productName: string;
+  name?: string; // Field name từ API response (có thể có hoặc không)
   quantity: number;
   price: number; // Giá trước thuế
   priceIncludeVAT: number; // Giá sau thuế
   totalCost: number; // Tổng tiền trước thuế (Price * Quantity)
   totalCostInclideVAT: number; // Tổng tiền sau thuế (PriceIncludeVAT * Quantity)
   VAT: number; // Mức thuế VAT (0, 5, 8, 10)
+  vat?: number; // Field vat từ API response (viết thường)
+  unitName?: string; // Đơn vị tính
+  productCode?: string; // Mã sản phẩm
   isConfirm: boolean;
   note?: string;
 }

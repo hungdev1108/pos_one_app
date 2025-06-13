@@ -1,4 +1,5 @@
 import { authService, LoginRequest } from "@/src/api";
+import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import React, { useRef, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
@@ -26,6 +27,7 @@ interface LoginForm {
 
 export default function LoginScreen() {
   const [isLoading, setIsLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const passwordRef = useRef<TextInput>(null);
 
   const {
@@ -172,33 +174,47 @@ export default function LoginScreen() {
                 {/* Password Field */}
                 <View style={styles.fieldContainer}>
                   <Text style={styles.label}>Mật khẩu</Text>
-                  <Controller
-                    control={control}
-                    rules={{
-                      required: "Vui lòng nhập mật khẩu",
-                    }}
-                    render={({ field: { onChange, onBlur, value } }) => (
-                      <TextInput
-                        ref={passwordRef}
-                        style={[
-                          styles.input,
-                          errors.password && styles.inputError,
-                        ]}
-                        onBlur={onBlur}
-                        onChangeText={onChange}
-                        value={value}
-                        placeholder=""
-                        placeholderTextColor="#999"
-                        secureTextEntry
-                        autoCapitalize="none"
-                        autoCorrect={false}
-                        returnKeyType="done"
-                        onSubmitEditing={handleSubmit(onSubmit)}
-                        editable={!isLoading}
+                  <View style={styles.passwordContainer}>
+                    <Controller
+                      control={control}
+                      rules={{
+                        required: "Vui lòng nhập mật khẩu",
+                      }}
+                      render={({ field: { onChange, onBlur, value } }) => (
+                        <TextInput
+                          ref={passwordRef}
+                          style={[
+                            styles.input,
+                            styles.passwordInput,
+                            errors.password && styles.inputError,
+                          ]}
+                          onBlur={onBlur}
+                          onChangeText={onChange}
+                          value={value}
+                          placeholder=""
+                          placeholderTextColor="#999"
+                          secureTextEntry={!showPassword}
+                          autoCapitalize="none"
+                          autoCorrect={false}
+                          returnKeyType="done"
+                          onSubmitEditing={handleSubmit(onSubmit)}
+                          editable={!isLoading}
+                        />
+                      )}
+                      name="password"
+                    />
+                    <TouchableOpacity
+                      style={styles.eyeIcon}
+                      onPress={() => setShowPassword(!showPassword)}
+                      disabled={isLoading}
+                    >
+                      <Ionicons
+                        name={showPassword ? "eye-off" : "eye"}
+                        size={20}
+                        color="#666"
                       />
-                    )}
-                    name="password"
-                  />
+                    </TouchableOpacity>
+                  </View>
                   {errors.password && (
                     <Text style={styles.errorText}>
                       {errors.password.message}
@@ -350,6 +366,18 @@ const styles = StyleSheet.create({
     fontSize: 16,
     backgroundColor: "#fff",
     color: "#333",
+  },
+  passwordContainer: {
+    position: "relative",
+  },
+  passwordInput: {
+    paddingRight: 50,
+  },
+  eyeIcon: {
+    position: "absolute",
+    right: 16,
+    top: 16,
+    padding: 4,
   },
   inputError: {
     borderColor: "#f44336",

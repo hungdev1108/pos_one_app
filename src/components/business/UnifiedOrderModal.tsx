@@ -15,6 +15,7 @@ import {
   Dimensions,
   FlatList,
   Modal,
+  SafeAreaView,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -217,7 +218,7 @@ const SwipeableOrderItem: React.FC<{
             <View style={styles.itemInfo}>
               <TouchableOpacity onPress={resetSwipe} activeOpacity={0.7}>
                 <Text style={styles.itemTitle} numberOfLines={2}>
-                  {item.title}
+                  {item.title.trim()}
                 </Text>
                 <Text style={styles.itemPrice}>{formatPrice(item.price)}</Text>
               </TouchableOpacity>
@@ -336,7 +337,7 @@ export default function UnifiedOrderModal({
         "📊 Products in reloaded order:",
         detail.products?.map((p) => ({
           id: p.id,
-          name: p.productName,
+          name: p.name || p.productName,
           quantity: p.quantity,
         }))
       );
@@ -358,7 +359,7 @@ export default function UnifiedOrderModal({
           detail.products.forEach((product) => {
             // KHÔNG force set VAT, chỉ tính toán các field thiếu
             // Lấy VAT rate từ API (ưu tiên field 'vat' viết thường)
-            const vatRate = (product as any).vat || product.VAT || 0;
+            const vatRate = product.vat || product.VAT || 0;
 
             // Tính giá bao gồm VAT nếu không có
             if (product.priceIncludeVAT === undefined) {
@@ -374,28 +375,35 @@ export default function UnifiedOrderModal({
 
         // Convert OrderDetail.products thành OrderItem[] để hiển thị
         if (detail.products && detail.products.length > 0) {
-          const convertedItems: OrderItem[] = detail.products.map(
-            (product) => ({
+          const convertedItems: OrderItem[] = detail.products.map((product) => {
+            // Lấy tên sản phẩm từ field 'name' hoặc fallback về 'productName' và trim khoảng trắng
+            const productTitle = (
+              product.name ||
+              product.productName ||
+              "Sản phẩm"
+            ).trim();
+
+            return {
               id: product.id,
-              title: product.productName,
+              title: productTitle,
               price: product.price,
               quantity: product.quantity,
               product: {
                 id: product.id,
-                title: product.productName,
+                title: productTitle,
                 categoryId: "",
                 categoryName: "",
                 price: product.price,
                 priceAfterDiscount: product.priceIncludeVAT || product.price,
                 discount: 0,
                 discountType: 0,
-                unitName: "",
+                unitName: product.unitName || "",
                 isActive: true,
                 isPublished: true,
                 categoryOutputMethod: 0,
               } as Product,
-            })
-          );
+            };
+          });
           setOrderDetailItems(convertedItems);
         } else {
           setOrderDetailItems([]);
@@ -467,15 +475,14 @@ export default function UnifiedOrderModal({
     // Debug: Log tất cả sản phẩm và VAT của chúng
     console.log("📦 All Products VAT Info:");
     orderDetail.products.forEach((product, index) => {
-      const actualVAT = (product as any).vat || product.VAT || 0;
-      console.log(`  Product ${index}: ${product.productName}`);
+      const actualVAT = product.vat || product.VAT || 0;
+      const productName = product.name || product.productName;
+      console.log(`  Product ${index}: ${productName}`);
       console.log(
         `    price=${product.price}, priceIncludeVAT=${product.priceIncludeVAT}`
       );
       console.log(
-        `    VAT field=${product.VAT}, vat field=${
-          (product as any).vat
-        }, actual VAT=${actualVAT}%`
+        `    VAT field=${product.VAT}, vat field=${product.vat}, actual VAT=${actualVAT}%`
       );
       console.log(
         `    totalCost=${product.totalCost}, totalCostInclideVAT=${product.totalCostInclideVAT}`
@@ -757,7 +764,7 @@ export default function UnifiedOrderModal({
         priceIncludeVAT: item.product.priceAfterDiscount || item.product.price,
         note: "",
         vat: 10,
-        name: item.product.title,
+        name: item.product.title.trim(),
         productCode: item.product.code,
         unitName: item.product.unitName || "Cái",
       }));
@@ -880,7 +887,7 @@ export default function UnifiedOrderModal({
         priceIncludeVAT: item.product.priceAfterDiscount || item.product.price,
         note: "",
         vat: 10,
-        name: item.product.title,
+        name: item.product.title.trim(),
         productCode: item.product.code,
         unitName: item.product.unitName || "Cái",
       }));
@@ -1009,7 +1016,7 @@ export default function UnifiedOrderModal({
               item.product.priceAfterDiscount || item.product.price,
             note: "",
             vat: 10,
-            name: item.product.title,
+            name: item.product.title.trim(),
             productCode: item.product.code,
             unitName: item.product.unitName || "Cái",
           }));
@@ -1171,7 +1178,7 @@ export default function UnifiedOrderModal({
         priceIncludeVAT: item.product.priceAfterDiscount || item.product.price,
         note: "",
         vat: 10,
-        name: item.product.title,
+        name: item.product.title.trim(),
         productCode: item.product.code,
         unitName: item.product.unitName || "Cái",
       }));
@@ -1230,7 +1237,7 @@ export default function UnifiedOrderModal({
           employeeName: "Nhân viên",
           items: orderItems.map((item) => ({
             id: item.id,
-            name: item.title,
+            name: item.title.trim(),
             quantity: item.quantity,
             note: "",
           })),
@@ -1430,32 +1437,33 @@ export default function UnifiedOrderModal({
   };
 
   return (
-    <Modal
-      visible={visible}
-      animationType="slide"
-      presentationStyle="pageSheet"
-      onRequestClose={onClose}
-    >
-      <View style={styles.container}>
-        {/* Header */}
-        <View style={styles.header}>
-          {title ? (
-            <Text style={styles.headerTitle}>{title}</Text>
-          ) : selectedOrder ? (
-            <Text style={styles.headerTitle}>Chi tiết đơn hàng</Text>
-          ) : selectedTable ? (
-            <View>
-              <Text style={styles.headerTitle}>Phiếu order</Text>
-              <Text style={styles.headerSubtitle}>
-                {selectedTable.name} - {selectedTable.areaName}
-              </Text>
-            </View>
-          ) : (
-            <Text style={styles.headerTitle}>Tạo đơn hàng mới</Text>
-          )}
-          <View style={styles.headerActions}>
-            {/* Customer Info Icon - Only show for new orders */}
-            {/* {!selectedOrder && (
+    <SafeAreaView>
+      <Modal
+        visible={visible}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={onClose}
+      >
+        <View style={styles.container}>
+          {/* Header */}
+          <View style={styles.header}>
+            {title ? (
+              <Text style={styles.headerTitle}>{title}</Text>
+            ) : selectedOrder ? (
+              <Text style={styles.headerTitle}>Chi tiết đơn hàng</Text>
+            ) : selectedTable ? (
+              <View>
+                <Text style={styles.headerTitle}>Phiếu order</Text>
+                <Text style={styles.headerSubtitle}>
+                  {selectedTable.name} - {selectedTable.areaName}
+                </Text>
+              </View>
+            ) : (
+              <Text style={styles.headerTitle}>Tạo đơn hàng mới</Text>
+            )}
+            <View style={styles.headerActions}>
+              {/* Customer Info Icon - Only show for new orders */}
+              {/* {!selectedOrder && (
               <TouchableOpacity
                 style={styles.customerInfoButton}
                 onPress={() => setCustomerInfoModalVisible(true)}
@@ -1463,133 +1471,134 @@ export default function UnifiedOrderModal({
                 <Ionicons name="person-add" size={20} color="#198754" />
               </TouchableOpacity>
             )} */}
-            <TouchableOpacity style={styles.closeButton} onPress={onClose}>
-              <Ionicons name="close" size={24} color="#333" />
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        {loading ? (
-          <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color="#198754" />
-            <Text style={styles.loadingText}>
-              Đang tải chi tiết đơn hàng...
-            </Text>
-          </View>
-        ) : (
-          <View style={styles.contentContainer}>
-            {/* Thông tin chi tiết đơn hàng (chỉ hiển thị khi xem từ tab đơn hàng) */}
-            {selectedOrder && renderOrderDetails()}
-
-            {/* Order Items List */}
-            {displayItems.length > 0 ? (
-              <FlatList
-                data={displayItems}
-                renderItem={renderOrderItem}
-                keyExtractor={(item) => item.id}
-                style={styles.itemsList}
-                contentContainerStyle={styles.itemsListContent}
-                showsVerticalScrollIndicator={true}
-                bounces={true}
-                scrollEnabled={true}
-                nestedScrollEnabled={true}
-                removeClippedSubviews={false}
-              />
-            ) : (
-              <View style={styles.emptyState}>
-                <Ionicons name="restaurant-outline" size={48} color="#ccc" />
-                <Text style={styles.emptyText}>Chưa có món nào được chọn</Text>
-                <Text style={styles.emptySubtext}>
-                  Vui lòng chọn món từ thực đơn
-                </Text>
-              </View>
-            )}
-
-            {/* Flex row:  Icon back to menu and Icon customer info */}
-            {selectedTable && !selectedOrder && (
-              <View style={styles.backToMenuAndCustomerInfoContainer}>
-                <TouchableOpacity
-                  style={styles.backToMenuContainer}
-                  onPress={onClose}
-                >
-                  <Ionicons name="arrow-back" size={26} color="#198754" />
-                  <Text style={styles.backToMenuText}>Quay lại</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={styles.backToCustomerInfoContainer}
-                  onPress={() => setCustomerInfoModalVisible(true)}
-                >
-                  <Ionicons name="person-add" size={26} color="#198754" />
-                  <Text style={styles.customerInfoText}>Khách hàng</Text>
-                </TouchableOpacity>
-              </View>
-            )}
-
-            {/* Summary Section */}
-            {displayItems.length > 0 && (
-              <View style={styles.summarySection}>
-                <View style={styles.summaryRow}>
-                  <Text style={styles.summaryLabel}>Tiền hàng:</Text>
-                  <Text style={styles.summaryValue}>
-                    {formatPriceUtil(subtotal)}
-                  </Text>
-                </View>
-
-                <View style={styles.summaryRow}>
-                  <Text style={styles.summaryLabel}>Tiền thuế:</Text>
-                  <Text style={styles.summaryValue}>
-                    {formatPriceUtil(taxAmount)}
-                  </Text>
-                </View>
-
-                <View style={[styles.summaryRow, styles.totalRow]}>
-                  <Text style={styles.totalLabel}>Phải thu:</Text>
-                  <Text style={styles.totalValue}>
-                    {formatPriceUtil(totalAmount)}
-                  </Text>
-                </View>
-              </View>
-            )}
-
-            {/* Footer Actions */}
-            <View style={[styles.footer, { paddingBottom: insets.bottom + 5 }]}>
-              {renderActionButtons()}
+              <TouchableOpacity style={styles.closeButton} onPress={onClose}>
+                <Ionicons name="close" size={24} color="#333" />
+              </TouchableOpacity>
             </View>
           </View>
-        )}
 
-        {/* Payment Modal */}
-        <PaymentModal
-          visible={paymentModalVisible}
-          totalAmount={totalAmount}
-          onClose={() => setPaymentModalVisible(false)}
-          onPayment={handlePayment}
-        />
+          {loading ? (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="large" color="#198754" />
+              <Text style={styles.loadingText}>
+                Đang tải chi tiết đơn hàng...
+              </Text>
+            </View>
+          ) : (
+            <View style={styles.contentContainer}>
+              {/* Thông tin chi tiết đơn hàng (chỉ hiển thị khi xem từ tab đơn hàng) */}
+              {selectedOrder && renderOrderDetails()}
 
-        {/* Customer Info Modal */}
-        <CustomerInfoModal
-          visible={customerInfoModalVisible}
-          initialData={customerInfo}
-          onClose={() => setCustomerInfoModalVisible(false)}
-          onSave={handleCustomerInfoSave}
-          shouldReset={shouldResetCustomerInfo}
-        />
+              {/* Order Items List */}
+              {displayItems.length > 0 ? (
+                <FlatList
+                  data={displayItems}
+                  renderItem={renderOrderItem}
+                  keyExtractor={(item) => item.id}
+                  style={styles.itemsList}
+                  contentContainerStyle={styles.itemsListContent}
+                  showsVerticalScrollIndicator={true}
+                  bounces={true}
+                  scrollEnabled={true}
+                  nestedScrollEnabled={true}
+                  removeClippedSubviews={false}
+                />
+              ) : (
+                <View style={styles.emptyState}>
+                  <Ionicons name="restaurant-outline" size={48} color="#ccc" />
+                  <Text style={styles.emptyText}>
+                    Chưa có món nào được chọn
+                  </Text>
+                  <Text style={styles.emptySubtext}>
+                    Vui lòng chọn món từ thực đơn
+                  </Text>
+                </View>
+              )}
 
-        {/* Kitchen Print Modal */}
-        {kitchenPrintData && (
-          <KitchenPrintModal
-            visible={kitchenPrintModalVisible}
-            onClose={() => {
-              setKitchenPrintModalVisible(false);
-              setKitchenPrintData(null);
-              onClose(); // Đóng UnifiedOrderModal sau khi in xong
-            }}
-            printData={kitchenPrintData}
+              {/* Flex row:  Icon back to menu and Icon customer info */}
+              {selectedTable && !selectedOrder && (
+                <View style={styles.backToMenuAndCustomerInfoContainer}>
+                  <TouchableOpacity
+                    style={styles.backToMenuContainer}
+                    onPress={onClose}
+                  >
+                    <Ionicons name="arrow-back" size={26} color="#198754" />
+                    <Text style={styles.backToMenuText}>Quay lại</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={styles.backToCustomerInfoContainer}
+                    onPress={() => setCustomerInfoModalVisible(true)}
+                  >
+                    <Ionicons name="person-add" size={26} color="#198754" />
+                    <Text style={styles.customerInfoText}>Khách hàng</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+
+              {/* Summary Section */}
+              {displayItems.length > 0 && (
+                <View style={styles.summarySection}>
+                  <View style={styles.summaryRow}>
+                    <Text style={styles.summaryLabel}>Tiền hàng:</Text>
+                    <Text style={styles.summaryValue}>
+                      {formatPriceUtil(subtotal)}
+                    </Text>
+                  </View>
+
+                  <View style={styles.summaryRow}>
+                    <Text style={styles.summaryLabel}>Tiền thuế:</Text>
+                    <Text style={styles.summaryValue}>
+                      {formatPriceUtil(taxAmount)}
+                    </Text>
+                  </View>
+
+                  <View style={[styles.summaryRow, styles.totalRow]}>
+                    <Text style={styles.totalLabel}>Phải thu:</Text>
+                    <Text style={styles.totalValue}>
+                      {formatPriceUtil(totalAmount)}
+                    </Text>
+                  </View>
+                </View>
+              )}
+
+              {/* Footer Actions */}
+              <View style={[styles.footer]}>{renderActionButtons()}</View>
+            </View>
+          )}
+
+          {/* Payment Modal */}
+          <PaymentModal
+            visible={paymentModalVisible}
+            totalAmount={totalAmount}
+            onClose={() => setPaymentModalVisible(false)}
+            onPayment={handlePayment}
           />
-        )}
-      </View>
-    </Modal>
+
+          {/* Customer Info Modal */}
+          <CustomerInfoModal
+            visible={customerInfoModalVisible}
+            initialData={customerInfo}
+            onClose={() => setCustomerInfoModalVisible(false)}
+            onSave={handleCustomerInfoSave}
+            shouldReset={shouldResetCustomerInfo}
+          />
+
+          {/* Kitchen Print Modal */}
+          {kitchenPrintData && (
+            <KitchenPrintModal
+              visible={kitchenPrintModalVisible}
+              onClose={() => {
+                setKitchenPrintModalVisible(false);
+                setKitchenPrintData(null);
+                onClose(); // Đóng UnifiedOrderModal sau khi in xong
+              }}
+              printData={kitchenPrintData}
+            />
+          )}
+        </View>
+      </Modal>
+    </SafeAreaView>
   );
 }
 
@@ -1633,7 +1642,7 @@ const styles = StyleSheet.create({
   orderInfoContainer: {
     backgroundColor: "#fff",
     paddingHorizontal: 20,
-    paddingVertical: 16,
+    paddingVertical: isTablet ? 5 : 10,
     borderBottomWidth: 1,
     borderBottomColor: "#f0f0f0",
   },
@@ -1641,7 +1650,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 8,
+    marginBottom: isTablet ? 2 : 5,
   },
   orderInfoLabel: {
     fontSize: 15,
@@ -1734,13 +1743,13 @@ const styles = StyleSheet.create({
     paddingRight: 12,
   },
   itemTitle: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: "500",
     color: "#333",
     marginBottom: 4,
   },
   itemPrice: {
-    fontSize: 14,
+    fontSize: 12,
     color: "#666",
   },
   quantityControls: {
@@ -1806,7 +1815,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 12,
+    marginBottom: 8,
   },
   summaryLabel: {
     fontSize: 16,
@@ -1839,6 +1848,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#fff",
     borderTopWidth: 1,
     borderTopColor: "#f0f0f0",
+    paddingBottom: isTablet ? 10 : 24,
   },
   buttonRow: {
     flexDirection: "row",

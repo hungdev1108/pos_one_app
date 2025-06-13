@@ -821,7 +821,7 @@ const styles = StyleSheet.create({
     padding: 16,
   },
   tabletSidebar: {
-    width: 120,
+    width: 130,
     backgroundColor: "#f8f9fa",
     borderLeftWidth: 1,
     borderLeftColor: "#e9ecef",
@@ -849,7 +849,7 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   tabletTotalAmount: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: "bold",
     color: "#fff",
   },
