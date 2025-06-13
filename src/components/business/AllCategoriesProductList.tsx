@@ -28,8 +28,14 @@ interface AllCategoriesProductListProps {
 }
 
 const { width } = Dimensions.get("window");
-const numColumns = 4;
+
+const numColumns = 2;
 const ITEM_WIDTH = (width - 48) / numColumns;
+
+// Breakpint for tablet android and ios
+const isTablet = width >= 720;
+const numColumns_tablet = 6;
+const ITEM_WIDTH_tablet = (width - 80) / numColumns_tablet;
 
 const AllCategoriesProductList: React.FC<AllCategoriesProductListProps> = ({
   categories,
@@ -46,6 +52,10 @@ const AllCategoriesProductList: React.FC<AllCategoriesProductListProps> = ({
   const scrollViewRef = useRef<ScrollView>(null);
   const categoryRefs = useRef<{ [categoryId: string]: number }>({});
   const [activeProductId, setActiveProductId] = useState<string | null>(null);
+  const [tabletSelectedCategoryId, setTabletSelectedCategoryId] = useState<
+    string | null
+  >(null);
+  const [showAllCategories, setShowAllCategories] = useState(false);
 
   // Scroll to selected category when selectedCategoryId changes
   useEffect(() => {
@@ -59,6 +69,18 @@ const AllCategoriesProductList: React.FC<AllCategoriesProductListProps> = ({
       }
     }
   }, [selectedCategoryId]);
+
+  // Initialize tablet to show all categories by default
+  useEffect(() => {
+    if (
+      isTablet &&
+      categories.length > 0 &&
+      !tabletSelectedCategoryId &&
+      !showAllCategories
+    ) {
+      setShowAllCategories(true);
+    }
+  }, [categories, isTablet, tabletSelectedCategoryId, showAllCategories]);
 
   const getImageSource = (product: Product) => {
     // Priority 1: Use BASE_URL + fullPath if available
@@ -165,6 +187,7 @@ const AllCategoriesProductList: React.FC<AllCategoriesProductListProps> = ({
     );
   };
 
+  // Mobile: Render product item
   const renderProductItem = (product: Product) => {
     const imageSource = getImageSource(product);
     const price = product.priceAfterDiscount || product.price;
@@ -184,7 +207,8 @@ const AllCategoriesProductList: React.FC<AllCategoriesProductListProps> = ({
               <ExpoImage
                 source={imageSource}
                 style={styles.productImage}
-                contentFit="cover"
+                contentFit="contain"
+                contentPosition="center"
                 transition={200}
               />
             ) : (
@@ -205,6 +229,80 @@ const AllCategoriesProductList: React.FC<AllCategoriesProductListProps> = ({
     );
   };
 
+  // Tablet: Render category sidebar item
+  const renderTabletCategoryItem = (category: Category) => {
+    const isSelected =
+      tabletSelectedCategoryId === category.id && !showAllCategories;
+
+    return (
+      <TouchableOpacity
+        key={category.id}
+        style={[
+          styles.tabletCategoryItem,
+          isSelected && styles.tabletCategoryItemSelected,
+        ]}
+        onPress={() => {
+          setTabletSelectedCategoryId(category.id);
+          setShowAllCategories(false);
+        }}
+      >
+        <Text
+          style={[
+            styles.tabletCategoryText,
+            isSelected && styles.tabletCategoryTextSelected,
+          ]}
+        >
+          {category.title}
+        </Text>
+        {isSelected && <View style={styles.tabletCategoryIndicator} />}
+      </TouchableOpacity>
+    );
+  };
+
+  // Tablet: Render products for selected category or all categories
+  const renderTabletSelectedCategoryProducts = () => {
+    // If "Tất cả" is selected, show all categories like mobile
+    if (showAllCategories) {
+      return (
+        <View style={styles.tabletProductsContainer}>
+          {categories.map((category, index) => renderCategory(category, index))}
+        </View>
+      );
+    }
+
+    // Show specific category products
+    if (!tabletSelectedCategoryId) return null;
+
+    const selectedCategory = categories.find(
+      (cat) => cat.id === tabletSelectedCategoryId
+    );
+    const products = allProducts[tabletSelectedCategoryId] || [];
+
+    return (
+      <View style={styles.tabletProductsContainer}>
+        {selectedCategory && (
+          <Text style={styles.tabletSelectedCategoryTitle}>
+            {selectedCategory.title}
+          </Text>
+        )}
+
+        {products.length === 0 ? (
+          <View style={styles.tabletEmptyProducts}>
+            <MaterialIcons name="no-drinks" size={48} color="#dee2e6" />
+            <Text style={styles.tabletEmptyProductsText}>
+              Chưa có sản phẩm trong danh mục này
+            </Text>
+          </View>
+        ) : (
+          <View style={styles.tabletProductsGrid}>
+            {products.map((product) => renderProductItem(product))}
+          </View>
+        )}
+      </View>
+    );
+  };
+
+  // Mobile: Render category
   const renderCategory = (category: Category, index: number) => {
     const products = allProducts[category.id] || [];
 
@@ -222,7 +320,9 @@ const AllCategoriesProductList: React.FC<AllCategoriesProductListProps> = ({
         >
           <View style={styles.sectionHeaderContent}>
             <Text style={styles.sectionTitle}>{category.title}</Text>
-            <Ionicons name="chevron-down" size={20} color="#333" />
+            {!isTablet && (
+              <Ionicons name="chevron-down" size={20} color="#333" />
+            )}
           </View>
           <View style={styles.sectionDivider} />
         </TouchableOpacity>
@@ -262,6 +362,67 @@ const AllCategoriesProductList: React.FC<AllCategoriesProductListProps> = ({
     );
   }
 
+  // Tablet layout with sidebar
+  if (isTablet) {
+    return (
+      <View style={styles.tabletContainer}>
+        {/* Left: Products */}
+        <View style={styles.tabletProductsSection}>
+          <ScrollView
+            style={styles.tabletProductsScrollView}
+            contentContainerStyle={styles.tabletProductsScrollContent}
+            showsVerticalScrollIndicator={false}
+            refreshControl={
+              <RefreshControl
+                refreshing={loading}
+                onRefresh={onRefresh}
+                colors={["#198754"]}
+                tintColor="#198754"
+              />
+            }
+          >
+            {renderTabletSelectedCategoryProducts()}
+          </ScrollView>
+        </View>
+
+        {/* Right: Categories Sidebar */}
+        <View style={styles.tabletSidebar}>
+          <ScrollView
+            style={styles.tabletCategoriesScrollView}
+            showsVerticalScrollIndicator={false}
+          >
+            {/* "Tất cả" button */}
+            <TouchableOpacity
+              style={[
+                styles.tabletCategoryItem,
+                showAllCategories && styles.tabletCategoryItemSelected,
+              ]}
+              onPress={() => {
+                setShowAllCategories(true);
+                setTabletSelectedCategoryId(null);
+              }}
+            >
+              <Text
+                style={[
+                  styles.tabletCategoryText,
+                  showAllCategories && styles.tabletCategoryTextSelected,
+                ]}
+              >
+                Tất cả
+              </Text>
+              {showAllCategories && (
+                <View style={styles.tabletCategoryIndicator} />
+              )}
+            </TouchableOpacity>
+
+            {categories.map((category) => renderTabletCategoryItem(category))}
+          </ScrollView>
+        </View>
+      </View>
+    );
+  }
+
+  // Mobile layout (original)
   return (
     <ScrollView
       ref={scrollViewRef}
@@ -294,34 +455,36 @@ const styles = StyleSheet.create({
     backgroundColor: "#f8f9fa",
     paddingVertical: 10,
     paddingHorizontal: 0,
-    marginBottom: 8,
+    marginBottom: isTablet ? 0 : 8,
     width: "100%",
   },
   sectionHeaderContent: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 10,
+    marginBottom: isTablet ? 0 : 10,
   },
   sectionTitle: {
-    fontSize: 18,
+    fontSize: isTablet ? 14 : 18,
     fontWeight: "bold",
     color: "#333",
   },
   sectionDivider: {
+    display: isTablet ? "none" : "flex",
     height: 1,
     backgroundColor: "#198754",
     borderRadius: 1,
   },
   productsGrid: {
     flexDirection: "row",
+    gap: 16,
     flexWrap: "wrap",
-    justifyContent: "space-between",
-    marginBottom: 24,
+    justifyContent: "flex-start",
+    marginBottom: 6,
   },
   productItem: {
-    width: ITEM_WIDTH,
-    marginBottom: 12,
+    width: isTablet ? ITEM_WIDTH_tablet : ITEM_WIDTH,
+    marginBottom: isTablet ? 0 : 12,
   },
   productCard: {
     backgroundColor: "#fff",
@@ -333,12 +496,13 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 2,
     position: "relative",
-    height: ITEM_WIDTH * 1.2,
+    height: isTablet ? ITEM_WIDTH_tablet * 1.2 : ITEM_WIDTH * 1.2,
   },
   imageContainer: {
+    padding: 5,
     width: "100%",
-    height: ITEM_WIDTH * 0.7,
-    backgroundColor: "#f0f0f0",
+    height: isTablet ? ITEM_WIDTH_tablet * 0.7 : ITEM_WIDTH * 0.7,
+    // backgroundColor: "#f0f0f0",
   },
   productImage: {
     width: "100%",
@@ -464,6 +628,92 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: "#666",
     marginTop: 16,
+  },
+  // Tablet-specific styles
+  tabletContainer: {
+    flex: 1,
+    flexDirection: "row",
+  },
+  tabletProductsSection: {
+    flex: 1,
+    // backgroundColor: "#fff",
+  },
+  tabletProductsScrollView: {
+    flex: 1,
+  },
+  tabletProductsScrollContent: {
+    paddingHorizontal: 16,
+  },
+  tabletSidebar: {
+    width: 120,
+    backgroundColor: "#f8f9fa",
+    borderLeftWidth: 1,
+    borderLeftColor: "#e9ecef",
+  },
+  tabletSidebarTitle: {
+    fontSize: 14,
+    fontWeight: "500",
+    color: "#333",
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: "#e9ecef",
+  },
+  tabletCategoriesScrollView: {
+    flex: 1,
+  },
+  tabletCategoryItem: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "#f0f0f0",
+    position: "relative",
+  },
+  tabletCategoryItemSelected: {
+    backgroundColor: "#e8f5e8",
+  },
+  tabletCategoryText: {
+    fontSize: isTablet ? 12 : 14,
+    color: "#666",
+    fontWeight: "500",
+  },
+  tabletCategoryTextSelected: {
+    color: "#198754",
+    fontWeight: "bold",
+  },
+  tabletCategoryIndicator: {
+    position: "absolute",
+    left: 0,
+    top: 0,
+    bottom: 0,
+    width: 3,
+    backgroundColor: "#198754",
+  },
+  tabletProductsContainer: {
+    flex: 1,
+  },
+  tabletSelectedCategoryTitle: {
+    fontSize: isTablet ? 18 : 24,
+    fontWeight: "bold",
+    color: "#333",
+    marginBottom: 20,
+  },
+  tabletProductsGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "flex-start",
+    gap: 16,
+  },
+  tabletEmptyProducts: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingVertical: 60,
+  },
+  tabletEmptyProductsText: {
+    fontSize: 16,
+    color: "#666",
+    marginTop: 16,
+    textAlign: "center",
   },
 });
 

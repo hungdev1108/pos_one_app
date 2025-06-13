@@ -1,7 +1,14 @@
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import React, { useEffect, useState } from "react";
-import { Alert, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import {
+  Alert,
+  Dimensions,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import {
@@ -66,6 +73,9 @@ interface PaymentData {
   bankCode?: string;
   voucher?: string;
 }
+
+const { width } = Dimensions.get("window");
+const isTablet = width >= 720;
 
 export default function HomeScreen() {
   const [userInfo, setUserInfo] = useState<UserInfo | null>(null);
@@ -200,7 +210,7 @@ export default function HomeScreen() {
         console.log("📋 General categories loaded:", categoriesData.length);
       }
 
-      console.log("📋 Categories data received:", categoriesData);
+      // console.log("📋 Categories data received:", categoriesData);
 
       // Kiểm tra nếu categoriesData là array hợp lệ
       if (Array.isArray(categoriesData)) {
@@ -248,7 +258,7 @@ export default function HomeScreen() {
         console.log("📦 General products loaded:", productsData.length);
       }
 
-      console.log("📦 Products data received:", productsData);
+      // console.log("📦 Products data received:", productsData);
 
       // Kiểm tra nếu productsData là array hợp lệ
       if (Array.isArray(productsData)) {
@@ -1306,7 +1316,7 @@ const styles = StyleSheet.create({
   },
   tabButton: {
     flex: 1,
-    paddingVertical: 15,
+    paddingVertical: isTablet ? 10 : 15,
     alignItems: "center",
     justifyContent: "center",
     flexDirection: "row",

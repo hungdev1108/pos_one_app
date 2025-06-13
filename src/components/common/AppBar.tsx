@@ -2,6 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { StatusBar } from "expo-status-bar";
 import React from "react";
 import {
+  Dimensions,
   Image,
   Platform,
   StyleSheet,
@@ -15,12 +16,15 @@ interface AppBarProps {
   onReloadPress: () => void;
 }
 
+const { width } = Dimensions.get("window");
+const isTablet = width >= 720;
+
 export default function AppBar({ onMenuPress, onReloadPress }: AppBarProps) {
   const insets = useSafeAreaInsets();
 
   return (
     <>
-      <StatusBar style="light" />
+      {isTablet ? <StatusBar style="dark" /> : <StatusBar style="light" />}
       {/* Status bar background for Android edge-to-edge */}
       {Platform.OS === "android" && (
         <View
@@ -28,14 +32,15 @@ export default function AppBar({ onMenuPress, onReloadPress }: AppBarProps) {
         />
       )}
       {/* Status bar background for iOS */}
-      {Platform.OS === "ios" && (
+      {/* {Platform.OS === "ios" && (
         <View style={[styles.statusBarBackgroundIos, { height: insets.top }]} />
-      )}
+      )} */}
       <View
         style={[
           styles.container,
           {
-            paddingTop: Platform.OS === "android" ? 8 : insets.top + 8, // Conditional padding
+            paddingTop:
+              Platform.OS === "android" && !isTablet ? 8 : insets.top + 2, // Conditional padding
           },
         ]}
       >
@@ -59,7 +64,7 @@ export default function AppBar({ onMenuPress, onReloadPress }: AppBarProps) {
         <View style={styles.logoContainer}>
           <Image
             style={styles.logo}
-            source={require("../../../assets/images/Logo-one-purple_new.png")}
+            source={require("../../../assets/images/One-Green-no-backg.png")}
           />
         </View>
 
@@ -89,8 +94,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   logo: {
-    width: 140,
-    height: 40,
+    width: isTablet ? 140 : 100,
+    height: isTablet ? 30 : 40,
     objectFit: "contain",
     shadowColor: "#fff",
     shadowOffset: { width: 0, height: 0 },
@@ -103,7 +108,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     backgroundColor: "#fff",
     paddingHorizontal: 10,
-    paddingBottom: 12,
+    paddingBottom: isTablet ? 2 : 12,
     elevation: 4,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },

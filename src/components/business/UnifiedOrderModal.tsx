@@ -95,6 +95,9 @@ interface UnifiedOrderModalProps {
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const SWIPE_THRESHOLD = -SCREEN_WIDTH * 0.3; // 30% of screen width
 
+const { width } = Dimensions.get("window");
+const isTablet = width >= 720;
+
 // Swipeable Order Item Component
 const SwipeableOrderItem: React.FC<{
   item: OrderItem;
@@ -1603,7 +1606,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
     paddingHorizontal: 20,
-    paddingVertical: 16,
+    paddingVertical: isTablet ? 5 : 16,
     backgroundColor: "#fff",
     borderBottomWidth: 1,
     borderBottomColor: "#f0f0f0",
@@ -1685,13 +1688,12 @@ const styles = StyleSheet.create({
   },
   itemsListContent: {
     paddingHorizontal: 20,
-    paddingVertical: 16,
     flexGrow: 1,
   },
   // Swipeable item styles
   swipeContainer: {
     backgroundColor: "#fff",
-    marginBottom: 1,
+    // marginBottom: 1,
   },
   deleteBackground: {
     position: "absolute",
@@ -1721,7 +1723,7 @@ const styles = StyleSheet.create({
   itemContent: {
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: 16,
+    paddingVertical: isTablet ? 0 : 16,
     paddingHorizontal: 0,
     borderBottomWidth: 1,
     borderBottomColor: "#f0f0f0",

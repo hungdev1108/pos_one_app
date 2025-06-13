@@ -59,7 +59,8 @@ const MainScreen: React.FC<MainScreenProps> = ({ username = "Daco" }) => {
             Xin chào, <Text style={styles.usernameText}>{username}</Text>
           </Text>
           <Text style={styles.welcomeText}>
-            Chúc bạn có trải nghiệm tuyệt vời cùng POS ONE
+            Chúc bạn có trải nghiệm tuyệt vời cùng{" "}
+            <Text style={styles.posOneText}>POS ONE</Text>
           </Text>
           <Text style={styles.subWelcomeText}>Hãy chọn ứng dụng của bạn</Text>
         </View>
@@ -295,6 +296,10 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: "#999999",
     marginHorizontal: 8,
+  },
+  posOneText: {
+    color: "#00cc33",
+    fontWeight: "bold",
   },
 });
 

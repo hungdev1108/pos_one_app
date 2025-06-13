@@ -1,12 +1,13 @@
 import { Area, Table, TableStatus } from "@/src/api/types";
 import { FontAwesome6, Ionicons } from "@expo/vector-icons";
-import React from "react";
+import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Dimensions,
   FlatList,
   Image,
   RefreshControl,
+  ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -24,6 +25,11 @@ interface AreasTablesViewProps {
 
 const { width } = Dimensions.get("window");
 
+// Breakpint for tablet android and ios
+const isTablet = width >= 720;
+const numColumns_tablet = 6;
+const ITEM_WIDTH_tablet = (width - 48) / numColumns_tablet;
+
 const AreasTablesView: React.FC<AreasTablesViewProps> = ({
   areas,
   loading,
@@ -32,6 +38,23 @@ const AreasTablesView: React.FC<AreasTablesViewProps> = ({
   onAreaPress,
   selectedTable,
 }) => {
+  const [tabletSelectedAreaId, setTabletSelectedAreaId] = useState<
+    string | null
+  >(null);
+  const [showAllOccupiedTables, setShowAllOccupiedTables] = useState(false);
+
+  // Initialize tablet view with first area selected
+  useEffect(() => {
+    if (
+      isTablet &&
+      areas.length > 0 &&
+      !tabletSelectedAreaId &&
+      !showAllOccupiedTables
+    ) {
+      setTabletSelectedAreaId(areas[0]?.id || null);
+    }
+  }, [areas, isTablet, tabletSelectedAreaId, showAllOccupiedTables]);
+
   const getTableStatusColor = (status: TableStatus) => {
     switch (status) {
       case TableStatus.Available:
@@ -67,6 +90,38 @@ const AreasTablesView: React.FC<AreasTablesViewProps> = ({
 
   const formatPrice = (price: number): string => {
     return new Intl.NumberFormat("vi-VN").format(price);
+  };
+
+  // Get all occupied tables across all areas
+  const getAllOccupiedTables = () => {
+    const occupiedTables: { table: Table; areaName: string }[] = [];
+
+    areas.forEach((area) => {
+      area.tables.forEach((table) => {
+        if (table.status === TableStatus.Occupied) {
+          occupiedTables.push({ table, areaName: area.name });
+        }
+      });
+    });
+
+    return occupiedTables;
+  };
+
+  // Calculate total amount of all occupied tables
+  const calculateTotalAmount = () => {
+    let total = 0;
+
+    areas.forEach((area) => {
+      area.tables.forEach((table) => {
+        if (table.status === TableStatus.Occupied && table.order) {
+          table.order.products.forEach((product) => {
+            total += product.totalCostInclideVAT || 0;
+          });
+        }
+      });
+    });
+
+    return total;
   };
 
   const renderTable = (table: Table, areaName: string) => {
@@ -140,9 +195,12 @@ const AreasTablesView: React.FC<AreasTablesViewProps> = ({
               style={styles.tableIcon}
               resizeMode="contain"
             />
-            <Text style={styles.tableName} numberOfLines={1}>
-              {table.name}
-            </Text>
+            <View style={styles.tableNameContainer_areaName}>
+              <Text style={styles.tableName} numberOfLines={1}>
+                {table.name}
+              </Text>
+              <Text style={styles.tableName_areaName}>{areaName}</Text>
+            </View>
           </View>
           {/* <View style={[styles.statusBadge, { backgroundColor: statusColor }]}>
             <Ionicons name={statusIcon} size={10} color="#fff" />
@@ -212,6 +270,115 @@ const AreasTablesView: React.FC<AreasTablesViewProps> = ({
     );
   };
 
+  // Tablet: Render area sidebar item
+  const renderTabletAreaItem = (area: Area) => {
+    const isSelected =
+      tabletSelectedAreaId === area.id && !showAllOccupiedTables;
+    const availableTables = area.tables.filter(
+      (t) => t.status === TableStatus.Available
+    ).length;
+    const occupiedTables = area.tables.filter(
+      (t) => t.status === TableStatus.Occupied
+    ).length;
+
+    return (
+      <TouchableOpacity
+        key={area.id}
+        style={[
+          styles.tabletAreaItem,
+          isSelected && styles.tabletAreaItemSelected,
+        ]}
+        onPress={() => {
+          setTabletSelectedAreaId(area.id);
+          setShowAllOccupiedTables(false);
+          onAreaPress?.(area);
+        }}
+      >
+        <Text
+          style={[
+            styles.tabletAreaText,
+            isSelected && styles.tabletAreaTextSelected,
+          ]}
+          numberOfLines={1}
+        >
+          {area.name}
+        </Text>
+        <View style={styles.tabletAreaStats}>
+          <Text style={styles.tabletAreaStatsText}>
+            {availableTables} trống • {occupiedTables} có khách
+          </Text>
+        </View>
+        {isSelected && <View style={styles.tabletAreaIndicator} />}
+      </TouchableOpacity>
+    );
+  };
+
+  // Tablet: Render tables for selected area or all occupied tables
+  const renderTabletSelectedAreaTables = () => {
+    // Show all occupied tables
+    if (showAllOccupiedTables) {
+      const occupiedTables = getAllOccupiedTables();
+
+      return (
+        <View style={styles.tabletTablesContainer}>
+          <Text style={styles.tabletSelectedAreaTitle}>
+            Tất cả bàn đang có khách
+          </Text>
+
+          {occupiedTables.length === 0 ? (
+            <View style={styles.tabletEmptyTables}>
+              <Ionicons
+                name="tablet-landscape-outline"
+                size={48}
+                color="#dee2e6"
+              />
+              <Text style={styles.tabletEmptyTablesText}>
+                Không có bàn nào đang có khách
+              </Text>
+            </View>
+          ) : (
+            <View style={styles.tabletTablesGrid}>
+              {occupiedTables.map(({ table, areaName }) =>
+                renderTable(table, areaName)
+              )}
+            </View>
+          )}
+        </View>
+      );
+    }
+
+    // Show specific area tables
+    if (!tabletSelectedAreaId) return null;
+
+    const selectedArea = areas.find((area) => area.id === tabletSelectedAreaId);
+    if (!selectedArea) return null;
+
+    return (
+      <View style={styles.tabletTablesContainer}>
+        <Text style={styles.tabletSelectedAreaTitle}>{selectedArea.name}</Text>
+
+        {selectedArea.tables.length === 0 ? (
+          <View style={styles.tabletEmptyTables}>
+            <Ionicons
+              name="tablet-landscape-outline"
+              size={48}
+              color="#dee2e6"
+            />
+            <Text style={styles.tabletEmptyTablesText}>
+              Chưa có bàn nào trong khu vực này
+            </Text>
+          </View>
+        ) : (
+          <View style={styles.tabletTablesGrid}>
+            {selectedArea.tables.map((table) =>
+              renderTable(table, selectedArea.name)
+            )}
+          </View>
+        )}
+      </View>
+    );
+  };
+
   const renderArea = ({ item: area }: { item: Area }) => {
     const availableTables = area.tables.filter(
       (t) => t.status === TableStatus.Available
@@ -269,6 +436,67 @@ const AreasTablesView: React.FC<AreasTablesViewProps> = ({
     );
   }
 
+  // Tablet layout with sidebar
+  if (isTablet) {
+    // Calculate total occupied tables and amount
+    const occupiedTables = getAllOccupiedTables();
+    const totalOccupiedCount = occupiedTables.length;
+    const totalAmount = calculateTotalAmount();
+
+    return (
+      <View style={styles.tabletContainer}>
+        {/* Left: Tables */}
+        <View style={styles.tabletTablesSection}>
+          <ScrollView
+            style={styles.tabletTablesScrollView}
+            contentContainerStyle={styles.tabletTablesScrollContent}
+            showsVerticalScrollIndicator={false}
+            refreshControl={
+              <RefreshControl
+                refreshing={loading}
+                onRefresh={onRefresh}
+                colors={["#198754"]}
+                tintColor="#198754"
+              />
+            }
+          >
+            {renderTabletSelectedAreaTables()}
+          </ScrollView>
+        </View>
+
+        {/* Right: Areas Sidebar */}
+        <View style={styles.tabletSidebar}>
+          <ScrollView
+            style={styles.tabletAreasScrollView}
+            showsVerticalScrollIndicator={false}
+          >
+            <TouchableOpacity
+              style={[
+                styles.tabletSidebarHeader,
+                styles.tableAllOccupiedTables,
+                showAllOccupiedTables &&
+                  styles.tabletSidebarHeaderActiveAllOccupiedTables,
+              ]}
+              onPress={() => {
+                setShowAllOccupiedTables(true);
+                setTabletSelectedAreaId(null);
+              }}
+            >
+              <Text style={[styles.tabletOccupiedCount]}>
+                {totalOccupiedCount} bàn
+              </Text>
+              <Text style={[styles.tabletTotalAmount]}>
+                {formatPrice(totalAmount)}
+              </Text>
+            </TouchableOpacity>
+            {areas.map((area) => renderTabletAreaItem(area))}
+          </ScrollView>
+        </View>
+      </View>
+    );
+  }
+
+  // Mobile layout (original)
   return (
     <FlatList
       data={areas}
@@ -337,11 +565,11 @@ const styles = StyleSheet.create({
     gap: 1,
   },
   tableCard: {
-    backgroundColor: "#fff",
+    backgroundColor: "#a6e9d5",
     borderRadius: 12,
     padding: 12,
-    marginBottom: 12,
-    width: (width - 48) / 2,
+    marginBottom: isTablet ? 0 : 12,
+    width: isTablet ? ITEM_WIDTH_tablet : (width - 48) / 2,
     // borderLeftWidth: 4,
     elevation: 2,
     shadowColor: "#000",
@@ -355,8 +583,8 @@ const styles = StyleSheet.create({
     backgroundColor: "#fff",
     borderRadius: 12,
     padding: 16,
-    marginBottom: 12,
-    width: (width - 48) / 2 - 6,
+    marginBottom: isTablet ? 0 : 12,
+    width: isTablet ? ITEM_WIDTH_tablet : (width - 48) / 2 - 6,
     // borderLeftWidth: 4,
     elevation: 2,
     shadowColor: "#000",
@@ -419,7 +647,18 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "bold",
     color: "#333",
+    // flex: 1,
+  },
+  tableNameContainer_areaName: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     flex: 1,
+    // marginRight: 8,
+  },
+  tableName_areaName: {
+    fontSize: 13,
+    color: "#666",
   },
   statusBadge: {
     flexDirection: "row",
@@ -535,9 +774,10 @@ const styles = StyleSheet.create({
     marginTop: 10,
   },
   selectedTableCard: {
-    backgroundColor: "#ffe6e6", // Màu đỏ nhạt
-    borderWidth: 1,
-    borderColor: "#ff9999",
+    // backgroundColor: "#ffe6e6", // Màu đỏ nhạt
+    backgroundColor: "#ffe69c",
+    // borderWidth: 1,
+    // borderColor: "#ff9999",
   },
   areaStatsText: {
     fontSize: 12,
@@ -565,6 +805,118 @@ const styles = StyleSheet.create({
   statsText_occupied: {
     fontSize: 14,
     color: "#666",
+  },
+  // Tablet-specific styles
+  tabletContainer: {
+    flex: 1,
+    flexDirection: "row",
+  },
+  tabletTablesSection: {
+    flex: 1,
+  },
+  tabletTablesScrollView: {
+    flex: 1,
+  },
+  tabletTablesScrollContent: {
+    padding: 16,
+  },
+  tabletSidebar: {
+    width: 120,
+    backgroundColor: "#f8f9fa",
+    borderLeftWidth: 1,
+    borderLeftColor: "#e9ecef",
+  },
+  tabletSidebarHeader: {
+    paddingVertical: 16,
+    paddingHorizontal: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "#e9ecef",
+    alignItems: "center",
+  },
+  tableAllOccupiedTables: {
+    backgroundColor: "#5470ff",
+  },
+  tabletSidebarHeaderActive: {
+    backgroundColor: "#e8f5e8",
+  },
+  tabletSidebarHeaderActiveAllOccupiedTables: {
+    backgroundColor: "#3d9970",
+  },
+  tabletOccupiedCount: {
+    fontSize: 14,
+    fontWeight: "bold",
+    color: "#fff",
+    marginBottom: 4,
+  },
+  tabletTotalAmount: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: "#fff",
+  },
+  tabletAreasScrollView: {
+    flex: 1,
+  },
+  tabletAreaItem: {
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: "#f0f0f0",
+    position: "relative",
+  },
+  tabletAreaItemSelected: {
+    backgroundColor: "#e8f5e8",
+  },
+  tabletAreaText: {
+    fontSize: 15,
+    color: "#666",
+    fontWeight: "500",
+    marginBottom: 4,
+  },
+  tabletAreaTextSelected: {
+    color: "#198754",
+    fontWeight: "bold",
+  },
+  tabletAreaStats: {
+    marginTop: 2,
+  },
+  tabletAreaStatsText: {
+    fontSize: 12,
+    color: "#777",
+  },
+  tabletAreaIndicator: {
+    position: "absolute",
+    left: 0,
+    top: 0,
+    bottom: 0,
+    width: 3,
+    backgroundColor: "#198754",
+  },
+  tabletTablesContainer: {
+    flex: 1,
+  },
+  tabletSelectedAreaTitle: {
+    fontSize: isTablet ? 14 : 20,
+    fontWeight: "bold",
+    color: "#333",
+    marginBottom: isTablet ? 8 : 16,
+  },
+  tabletTablesGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "flex-start",
+    gap: 16,
+  },
+  tabletEmptyTables: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingVertical: 60,
+  },
+  tabletEmptyTablesText: {
+    fontSize: 16,
+    color: "#666",
+    marginTop: 16,
+    textAlign: "center",
   },
 });
 

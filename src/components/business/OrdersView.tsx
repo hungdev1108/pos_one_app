@@ -36,6 +36,10 @@ enum OrderTabType {
 
 const { width } = Dimensions.get("window");
 
+const isTablet = width >= 720;
+const numColumns = isTablet ? 2 : 1;
+const ITEM_WIDTH = isTablet ? (width - 48) / 2 : width - 32;
+
 const OrdersView: React.FC<OrdersViewProps> = ({
   onOrderPress,
   onRefresh,
@@ -56,6 +60,11 @@ const OrdersView: React.FC<OrdersViewProps> = ({
     searchTerm: "",
     fromDate: "",
     toDate: "",
+  };
+
+  // Helper function để kiểm tra loại thanh toán
+  const isCounterPayment = () => {
+    return fnbConfig?.LoaiFnB === 1 || String(fnbConfig?.LoaiFnB) === "1";
   };
 
   useEffect(() => {
@@ -180,12 +189,10 @@ const OrdersView: React.FC<OrdersViewProps> = ({
           confirmText = "Bạn có chắc muốn xác nhận đơn hàng này?";
           break;
         case "send":
-          actionText =
-            fnbConfig?.LoaiFnB === 1 ? "phục vụ & thanh toán" : "phục vụ";
-          confirmText =
-            fnbConfig?.LoaiFnB === 1
-              ? "Đơn hàng sẽ được chuyển sang trạng thái 'Đã thanh toán' (thanh toán tại quầy)"
-              : "Đơn hàng sẽ được chuyển sang trạng thái 'Tạm tính' (chờ thanh toán tại bàn)";
+          actionText = isCounterPayment() ? "phục vụ & thanh toán" : "phục vụ";
+          confirmText = isCounterPayment()
+            ? "Đơn hàng sẽ được chuyển sang trạng thái 'Đã thanh toán' (thanh toán tại quầy)"
+            : "Đơn hàng sẽ được chuyển sang trạng thái 'Tạm tính' (chờ thanh toán tại bàn)";
           break;
         case "receive":
           actionText = "thanh toán";
@@ -248,7 +255,7 @@ const OrdersView: React.FC<OrdersViewProps> = ({
       case OrderTabType.CONFIRMED:
         return "Đã xác nhận";
       case OrderTabType.SENT:
-        return fnbConfig?.LoaiFnB === 1 ? "Đã thanh toán" : "Tạm tính";
+        return "Tạm tính";
       case OrderTabType.RECEIVED:
         return "Thanh toán";
       case OrderTabType.CANCELLED:
@@ -326,7 +333,7 @@ const OrdersView: React.FC<OrdersViewProps> = ({
     const statusColor = getOrderStatusColor(activeTab);
 
     return (
-      <View style={styles.orderCard}>
+      <View style={[styles.orderCard, isTablet && styles.orderCardTablet]}>
         <View style={styles.orderHeader}>
           <View style={styles.orderCodeContainer}>
             <Text style={styles.orderCode}>#{item.code}</Text>
@@ -391,10 +398,8 @@ const OrdersView: React.FC<OrdersViewProps> = ({
       // OrderTabType.CANCELLED,
     ];
 
-    // Ẩn tab SENT nếu là thanh toán tại quầy
-    const visibleTabs = tabs.filter(
-      (tab) => !(tab === OrderTabType.SENT && fnbConfig?.LoaiFnB === 1)
-    );
+    // Hiển thị tất cả các tab
+    const visibleTabs = tabs;
 
     return (
       <View style={styles.tabBar}>
@@ -464,11 +469,14 @@ const OrdersView: React.FC<OrdersViewProps> = ({
         data={orders}
         renderItem={renderOrderItem}
         keyExtractor={(item) => item.id}
+        numColumns={numColumns}
+        key={numColumns}
         style={styles.ordersList}
         contentContainerStyle={[
           styles.ordersListContent,
           orders.length === 0 && styles.emptyListContent,
         ]}
+        columnWrapperStyle={isTablet ? styles.row : undefined}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -535,6 +543,9 @@ const styles = StyleSheet.create({
   emptyListContent: {
     flexGrow: 1,
   },
+  row: {
+    justifyContent: "space-between",
+  },
   orderCard: {
     backgroundColor: "#fff",
     borderRadius: 12,
@@ -544,6 +555,10 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
     shadowRadius: 2,
+  },
+  orderCardTablet: {
+    width: ITEM_WIDTH - 8,
+    marginHorizontal: 4,
   },
   orderHeader: {
     flexDirection: "row",
@@ -557,7 +572,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   orderCode: {
-    fontSize: 18,
+    fontSize: isTablet ? 16 : 18,
     fontWeight: "bold",
     color: "#333",
     marginBottom: 8,
@@ -596,14 +611,14 @@ const styles = StyleSheet.create({
     flexWrap: "wrap",
   },
   customerName: {
-    fontSize: 16,
+    fontSize: isTablet ? 14 : 16,
     fontWeight: "500",
     color: "#333",
     marginLeft: 8,
     flex: 1,
   },
   customerPhone: {
-    fontSize: 14,
+    fontSize: isTablet ? 12 : 14,
     color: "#666",
     marginLeft: 8,
   },
@@ -618,7 +633,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   statText: {
-    fontSize: 14,
+    fontSize: isTablet ? 12 : 14,
     color: "#666",
     marginLeft: 4,
   },
@@ -626,7 +641,7 @@ const styles = StyleSheet.create({
     alignItems: "flex-end",
   },
   totalPrice: {
-    fontSize: 18,
+    fontSize: isTablet ? 16 : 18,
     fontWeight: "bold",
     color: "#198754",
   },

@@ -162,7 +162,7 @@ export class WarehouseService {
     try {
       const response = await apiClient.get<Category[]>('/api/warehouses/categories/sales');
       
-      console.log('📋 Categories response:', response);
+      // console.log('📋 Categories response:', response);
       
       // Kiểm tra nếu response là array
       if (Array.isArray(response)) {
