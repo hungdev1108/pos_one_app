@@ -62,12 +62,7 @@ export default function LoginScreen() {
 
       if (response.successful) {
         // Đăng nhập thành công
-        Alert.alert("Thành công", "Đăng nhập thành công!", [
-          {
-            text: "OK",
-            onPress: () => router.replace("/main"),
-          },
-        ]);
+        router.replace("/main");
       } else {
         // Đăng nhập thất bại
         Alert.alert(

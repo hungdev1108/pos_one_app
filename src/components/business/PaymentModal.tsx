@@ -15,12 +15,14 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { ordersService } from "../../api/services/orders";
 
 interface PaymentModalProps {
   visible: boolean;
   totalAmount: number;
   onClose: () => void;
   onPayment: (paymentData: PaymentData) => void;
+  orderId?: string;
 }
 
 interface PaymentData {
@@ -68,6 +70,7 @@ export default function PaymentModal({
   totalAmount,
   onClose,
   onPayment,
+  orderId,
 }: PaymentModalProps) {
   const insets = useSafeAreaInsets();
   const [customerPaid, setCustomerPaid] = useState<string>("");
@@ -95,6 +98,12 @@ export default function PaymentModal({
   // State cho QR Code popup
   const [qrModalVisible, setQrModalVisible] = useState(false);
   const [qrImageUrl, setQrImageUrl] = useState("");
+  const [qrPaymentData, setQrPaymentData] = useState<{
+    qr: string;
+    paymentId: string;
+    apptransid: string;
+  } | null>(null);
+  const [isLoadingQR, setIsLoadingQR] = useState(false);
 
   // Reset state when modal opens
   useEffect(() => {
@@ -118,6 +127,8 @@ export default function PaymentModal({
       setIsTaxLookupLoading(false);
       setQrModalVisible(false);
       setQrImageUrl("");
+      setQrPaymentData(null);
+      setIsLoadingQR(false);
     }
   }, [visible]);
 
@@ -255,16 +266,40 @@ export default function PaymentModal({
     }));
   };
 
-  const handleVNPayQR = () => {
-    // Loại bỏ dấu chấm từ totalAmount và tạo URL QR
-    const amountWithoutComma = totalAmount.toString().replace(/\./g, "");
+  const handleVNPayQR = async () => {
+    if (!orderId) {
+      Alert.alert("Lỗi", "Không tìm thấy ID đơn hàng để tạo mã QR thanh toán.");
+      return;
+    }
 
-    const qrUrl = `https://img.vietqr.io/image/Vietcombank-0071000731965-compact2.png?amount=${amountWithoutComma}&addInfo=89353950&accountName=POS%20ONE`;
+    try {
+      setIsLoadingQR(true);
+      console.log("🔄 Calling VNPAY QR API for orderId:", orderId);
 
-    setQrImageUrl(qrUrl);
-    setQrModalVisible(true);
+      const paymentResponse = await ordersService.getPaymentMethods(orderId);
+      console.log("✅ VNPAY QR API response:", paymentResponse);
 
-    console.log("🏦 VNPAY QR URL:", qrUrl);
+      if (paymentResponse && paymentResponse.qr) {
+        setQrPaymentData({
+          qr: paymentResponse.qr,
+          paymentId: paymentResponse.paymentId,
+          apptransid: paymentResponse.apptransid,
+        });
+        setQrModalVisible(true);
+      } else {
+        Alert.alert("Lỗi", "Không thể tạo mã QR thanh toán. Vui lòng thử lại.");
+      }
+    } catch (error: any) {
+      console.error("❌ Error calling VNPAY QR API:", error);
+      Alert.alert(
+        "Lỗi",
+        `Không thể tạo mã QR thanh toán: ${
+          error.message || "Lỗi không xác định"
+        }`
+      );
+    } finally {
+      setIsLoadingQR(false);
+    }
   };
 
   const handlePayment = () => {
@@ -354,7 +389,9 @@ export default function PaymentModal({
                   styles.bankButton,
                   { backgroundColor: bank.color },
                   selectedBank === bank.code && styles.selectedBankButton,
+                  bank.code === "vnpay" && isLoadingQR && { opacity: 0.6 },
                 ]}
+                disabled={bank.code === "vnpay" && isLoadingQR}
                 onPress={() => {
                   if (bank.code === "vnpay") {
                     handleVNPayQR();
@@ -363,7 +400,11 @@ export default function PaymentModal({
                   }
                 }}
               >
-                <Text style={styles.bankButtonText}>{bank.name}</Text>
+                <Text style={styles.bankButtonText}>
+                  {bank.code === "vnpay" && isLoadingQR
+                    ? "Đang tạo QR..."
+                    : bank.name}
+                </Text>
               </TouchableOpacity>
             ))}
           </View>
@@ -864,7 +905,7 @@ export default function PaymentModal({
         </View>
       </KeyboardAvoidingView>
 
-      {/* QR Code Modal */}
+      {/* QR Code Modal - New VNPAY API Version */}
       <Modal
         visible={qrModalVisible}
         animationType="fade"
@@ -886,9 +927,9 @@ export default function PaymentModal({
 
             {/* QR Code Image */}
             <View style={styles.qrImageContainer}>
-              {qrImageUrl ? (
+              {qrPaymentData?.qr ? (
                 <Image
-                  source={{ uri: qrImageUrl }}
+                  source={{ uri: `data:image/png;base64,${qrPaymentData.qr}` }}
                   style={styles.qrImage}
                   resizeMode="contain"
                 />
@@ -898,26 +939,66 @@ export default function PaymentModal({
             </View>
 
             {/* Payment Info */}
-            {/* <View style={styles.qrPaymentInfo}>
+            <View style={styles.qrPaymentInfo}>
               <Text style={styles.qrPaymentLabel}>Số tiền cần thanh toán:</Text>
               <Text style={styles.qrPaymentAmount}>
                 {formatPrice(totalAmount)}
               </Text>
+              {qrPaymentData?.apptransid && (
+                <Text style={styles.qrTransactionId}>
+                  Mã giao dịch: {qrPaymentData.apptransid}
+                </Text>
+              )}
               <Text style={styles.qrPaymentInstruction}>
                 Sử dụng ứng dụng ngân hàng để quét mã QR
               </Text>
-            </View> */}
+            </View>
 
             {/* Action Button */}
-            {/* <TouchableOpacity
+            <TouchableOpacity
               style={styles.qrDoneButton}
               onPress={() => setQrModalVisible(false)}
             >
               <Text style={styles.qrDoneButtonText}>Đóng</Text>
-            </TouchableOpacity> */}
+            </TouchableOpacity>
           </View>
         </View>
       </Modal>
+
+      {/* Commented out old QR Modal */}
+      {/* {qrModalVisible && (
+        <Modal
+          visible={qrModalVisible}
+          animationType="fade"
+          transparent={true}
+          onRequestClose={() => setQrModalVisible(false)}
+        >
+          <View style={styles.qrModalOverlay}>
+            <View style={styles.qrModalContainer}>
+              <View style={styles.qrModalHeader}>
+                <Text style={styles.qrModalTitle}>Thanh toán VNPAY QR</Text>
+                <TouchableOpacity
+                  style={styles.qrModalCloseButton}
+                  onPress={() => setQrModalVisible(false)}
+                >
+                  <Ionicons name="close" size={24} color="#333" />
+                </TouchableOpacity>
+              </View>
+              <View style={styles.qrImageContainer}>
+                {qrImageUrl ? (
+                  <Image
+                    source={{ uri: qrImageUrl }}
+                    style={styles.qrImage}
+                    resizeMode="contain"
+                  />
+                ) : (
+                  <Text>Đang tải QR code...</Text>
+                )}
+              </View>
+            </View>
+          </View>
+        </Modal>
+      )} */}
     </Modal>
   );
 }
@@ -1419,6 +1500,12 @@ const styles = StyleSheet.create({
     fontSize: 28,
     fontWeight: "bold",
     color: "#198754",
+  },
+  qrTransactionId: {
+    fontSize: 12,
+    color: "#666",
+    marginTop: 8,
+    marginBottom: 8,
   },
   qrPaymentInstruction: {
     fontSize: 14,

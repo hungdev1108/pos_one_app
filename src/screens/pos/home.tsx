@@ -1262,6 +1262,7 @@ export default function HomeScreen() {
             setTempOrderData(null);
           }}
           onPayment={handlePaymentComplete}
+          orderId={tempOrderData?.orderId}
         />
       </View>
     </SafeAreaView>

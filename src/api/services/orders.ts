@@ -10,6 +10,8 @@ import {
   OrderProductRequest,
   OrdersListResponse,
   OrdersRequestParams,
+  OrderType,
+  PaymentMethod,
   PrintOrderData,
   ProductDetail,
   UpdateOrderRequest
@@ -23,6 +25,8 @@ import { productService } from "./product";
 class OrdersService {
   private baseUrl = "/api/orders";
   private configUrl = "/api/warehouses/configs";
+  private orderTypesUrl = "/api";
+  private paymentMethodsUrl = "/api";
 
   // ===== LOAD CONFIGS =====
   /**
@@ -1058,6 +1062,22 @@ class OrdersService {
       canAdd: false, 
       reason: "Trạng thái đơn hàng không hợp lệ" 
     };
+  }
+
+  /**
+   * Lấy thông tin các loại đơn hàng từ backend để hiển thị trong giao diện
+   */
+  async getOrderTypes(): Promise<OrderType[]> {
+    const response = await apiClient.get<OrderType[]>(`${this.orderTypesUrl}/attributes/values`);
+    return response;
+  }
+
+  /**
+   * Lấy thông tin các loại thanh toán từ backend để hiển thị trong giao diện
+   */
+  async getPaymentMethods(orderId: string ): Promise<PaymentMethod> {
+    const response = await apiClient.post<PaymentMethod>(`${this.paymentMethodsUrl}/orders/${orderId}/create-qr-vn-pay`);
+    return response;
   }
 }
 

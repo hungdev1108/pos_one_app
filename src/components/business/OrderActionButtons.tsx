@@ -242,7 +242,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#198754",
   },
   infoButton: {
-    backgroundColor: "#0dcaf0",
+    backgroundColor: "#007bff",
   },
   detailButton: {
     backgroundColor: "transparent",

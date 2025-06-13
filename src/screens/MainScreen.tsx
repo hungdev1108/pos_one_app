@@ -1,6 +1,8 @@
+import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import React from "react";
 import {
+  Alert,
   Dimensions,
   Image,
   Linking,
@@ -11,6 +13,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { authService } from "../api/services/auth";
 
 // Logo Component
 const Logo = () => {
@@ -34,11 +37,37 @@ const MainScreen: React.FC<MainScreenProps> = ({ username = "Daco" }) => {
   };
 
   const handleManagementPress = () => {
-    Linking.openURL("https://posone.vn");
+    router.push("/manager-webview");
   };
 
   const handleKOMPress = () => {
     Linking.openURL("https://kom.kas.asia/");
+  };
+
+  const handleLogout = async () => {
+    Alert.alert(
+      "Đăng xuất",
+      "Bạn có chắc chắn muốn đăng xuất khỏi tài khoản này?",
+      [
+        {
+          text: "Hủy",
+          style: "cancel",
+        },
+        {
+          text: "Đăng xuất",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await authService.logout();
+              router.replace("/login");
+            } catch (error: any) {
+              console.error("Logout error:", error);
+              Alert.alert("Lỗi", "Không thể đăng xuất. Vui lòng thử lại.");
+            }
+          },
+        },
+      ]
+    );
   };
 
   return (
@@ -47,7 +76,7 @@ const MainScreen: React.FC<MainScreenProps> = ({ username = "Daco" }) => {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {/* Header với Logo */}
+        {/* Header với Logo và Logout */}
         <View style={styles.header}>
           <Logo />
         </View>
@@ -111,6 +140,12 @@ const MainScreen: React.FC<MainScreenProps> = ({ username = "Daco" }) => {
             </TouchableOpacity>
           </View>
         </View>
+        <View style={styles.logoutButtonContainer}>
+          <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
+            <Ionicons name="log-out-outline" size={20} color="#999" />
+            <Text style={styles.logoutButtonText}>Đăng xuất</Text>
+          </TouchableOpacity>
+        </View>
 
         {/* Footer */}
         <View style={styles.footer}>
@@ -133,7 +168,8 @@ const MainScreen: React.FC<MainScreenProps> = ({ username = "Daco" }) => {
   );
 };
 
-const { width, height } = Dimensions.get("window");
+const { width: SCREEN_WIDTH } = Dimensions.get("window");
+const isTablet = SCREEN_WIDTH >= 720;
 
 const styles = StyleSheet.create({
   container: {
@@ -147,9 +183,11 @@ const styles = StyleSheet.create({
     paddingVertical: 20,
   },
   header: {
+    position: "relative",
     alignItems: "center",
     marginTop: 20,
     marginBottom: 20,
+    minHeight: 60,
   },
   logo: {
     width: 200,
@@ -187,6 +225,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: "#999999",
     textAlign: "center",
+    marginBottom: isTablet ? 20 : 0,
   },
   actionsSection: {
     flex: 1,
@@ -300,6 +339,29 @@ const styles = StyleSheet.create({
   posOneText: {
     color: "#00cc33",
     fontWeight: "bold",
+  },
+  logoutButton: {
+    position: "absolute",
+    top: 0,
+    right: 0,
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  logoutButtonText: {
+    fontSize: 14,
+    color: "#999",
+    fontWeight: "500",
+    marginLeft: 6,
+  },
+  logoutButtonContainer: {
+    alignItems: "center",
+    paddingVertical: 20,
+    marginHorizontal: 10,
+    // borderTopWidth: 1,
+    // borderTopColor: "#e9ecef",
   },
 });
 

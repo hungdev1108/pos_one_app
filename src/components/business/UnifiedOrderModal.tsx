@@ -5,6 +5,7 @@ import {
   Table,
   ordersService,
 } from "@/src/api";
+import { OrderType } from "@/src/api/types";
 import { OrderMode } from "@/src/services/buttonVisibilityService";
 import { Ionicons } from "@expo/vector-icons";
 import React, { useEffect, useRef, useState } from "react";
@@ -102,6 +103,7 @@ const isTablet = width >= 720;
 // Swipeable Order Item Component
 const SwipeableOrderItem: React.FC<{
   item: OrderItem;
+  index: number;
   onUpdateQuantity?: (itemId: string, value: number) => void;
   onRemoveItem?: (itemId: string) => void;
   isPaid: boolean;
@@ -109,6 +111,7 @@ const SwipeableOrderItem: React.FC<{
   isExistingOrder?: boolean;
 }> = ({
   item,
+  index,
   onUpdateQuantity,
   onRemoveItem,
   isPaid,
@@ -206,6 +209,11 @@ const SwipeableOrderItem: React.FC<{
         ]}
       >
         <View style={styles.itemContent}>
+          {/* Item Number */}
+          <View style={styles.itemNumberContainer}>
+            <Text style={styles.itemNumber}>{index + 1}</Text>
+          </View>
+
           {/* Swipeable area - chỉ cho phần text */}
           <PanGestureHandler
             onGestureEvent={handleSwipeGesture}
@@ -270,6 +278,7 @@ export default function UnifiedOrderModal({
   const [orderStatusText, setOrderStatusText] = useState<string>("");
   const [orderDetailItems, setOrderDetailItems] = useState<OrderItem[]>([]);
   const [paymentModalVisible, setPaymentModalVisible] = useState(false);
+  const [orderTypes, setOrderTypes] = useState<OrderType[]>([]);
 
   // Kitchen print modal state
   const [kitchenPrintModalVisible, setKitchenPrintModalVisible] =
@@ -296,6 +305,7 @@ export default function UnifiedOrderModal({
       setOrderDetailItems([]);
       setOrderStatus("");
       setOrderStatusText("");
+      loadOrderTypes();
     }
   }, [visible, selectedOrder]);
 
@@ -320,6 +330,12 @@ export default function UnifiedOrderModal({
       return () => clearTimeout(timer);
     }
   }, [shouldResetCustomerInfo]);
+
+  const loadOrderTypes = async () => {
+    const orderTypes = await ordersService.getOrderTypes();
+    console.log("🔍 oooooooorderTypes:", orderTypes);
+    setOrderTypes(orderTypes);
+  };
 
   const loadOrderDetail = async () => {
     if (!selectedOrder) {
@@ -522,7 +538,13 @@ export default function UnifiedOrderModal({
     totalAmount = subtotal + taxAmount;
   }
 
-  const renderOrderItem = ({ item }: { item: OrderItem }) => {
+  const renderOrderItem = ({
+    item,
+    index,
+  }: {
+    item: OrderItem;
+    index: number;
+  }) => {
     // Determine if order is paid based on status
     const isOrderPaid = selectedOrder ? orderStatus === "paid" : isPaid;
 
@@ -548,6 +570,7 @@ export default function UnifiedOrderModal({
     return (
       <SwipeableOrderItem
         item={item}
+        index={index}
         onUpdateQuantity={updateQuantityHandler}
         onRemoveItem={removeItemHandler}
         isPaid={isOrderPaid}
@@ -561,8 +584,58 @@ export default function UnifiedOrderModal({
   const renderOrderDetails = () => {
     if (!selectedOrder || !orderDetail) return null;
 
+    // Debug logging để kiểm tra các trường có thể chứa thông tin loại đơn
+    console.log("🔍 orderDetail full structure:", {
+      orderType: (orderDetail as any).orderType,
+      isDelivery: (orderDetail as any).isDelivery,
+      paymentMethod: (orderDetail as any).paymentMethod,
+      tableName: orderDetail.tableName,
+      tableId: orderDetail.tableId,
+    });
+    console.log("🔍 orderTypes:", orderTypes);
+
+    // Xác định loại đơn dựa trên logic nghiệp vụ
+    const getOrderTypeText = () => {
+      // Nếu có orderType field và match với orderTypes
+      const orderType = (orderDetail as any).orderType;
+      if (orderType && orderTypes.length > 0) {
+        const matchedType = orderTypes.find(
+          (type) =>
+            type.sourceId === orderType?.toString() ||
+            type.id === orderType?.toString()
+        );
+        if (matchedType) {
+          return matchedType.titles[0]?.title || "Không xác định";
+        }
+      }
+
+      // Logic fallback dựa trên các trường khác
+      const isDelivery = (orderDetail as any).isDelivery;
+      if (isDelivery) {
+        return "Giao hàng";
+      } else if (orderDetail.tableName) {
+        return "Tại chỗ";
+      } else {
+        return "Mang về";
+      }
+    };
+
     return (
       <View style={styles.orderInfoContainer}>
+        {/* Info table */}
+        {/* {orderDetail.tableName && (
+          <View style={styles.orderInfoRowTable}>
+            <Text style={styles.orderInfoLabel}>Bàn:</Text>
+            <Text style={styles.orderInfoValue}>{orderDetail.tableName} - Khu {orderDetail.tableAreaName}</Text>
+          </View>
+        )} */}
+
+        {/* Info order type */}
+        <View style={styles.orderInfoRow}>
+          <Text style={styles.orderInfoLabel}>Loại đơn:</Text>
+          <Text style={styles.orderInfoValue}>{getOrderTypeText()}</Text>
+        </View>
+
         <View style={styles.orderInfoRow}>
           <Text style={styles.orderInfoLabel}>Mã đơn:</Text>
           <Text style={styles.orderInfoValue}>{orderDetail.code}</Text>
@@ -844,124 +917,6 @@ export default function UnifiedOrderModal({
       }
     } catch (error: any) {
       console.error("❌ Error creating order:", error);
-      Alert.alert(
-        "Lỗi",
-        error.message || "Có lỗi xảy ra khi tạo đơn hàng. Vui lòng thử lại."
-      );
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  /**
-   * Luồng cũ cho nút "Thanh toán":
-   * 1. Tạo đơn hàng mới
-   * 2. Call API In chế biến
-   * 3. Chuyển đến giao diện chi tiết đơn hàng
-   * 4. Mở giao diện thanh toán
-   *
-   * ⚠️ ĐÃ TỐI ƯU: Luồng này đã được thay thế bằng handleOptimizedPaymentFlow
-   * Giữ lại để tham khảo hoặc fallback khi cần
-   */
-  const handlePaymentCreateFlow_OLD = async () => {
-    if (loading) {
-      console.log(
-        "⚠️ Payment create flow already in progress, ignoring duplicate call"
-      );
-      return;
-    }
-
-    if (orderItems.length === 0) {
-      Alert.alert("Lỗi", "Chưa có món nào được chọn");
-      return;
-    }
-
-    try {
-      setLoading(true);
-
-      // Bước 1: Tạo đơn hàng mới (sử dụng logic tương tự handleCreateOrder)
-      const products = orderItems.map((item) => ({
-        productId: item.product.id,
-        quantity: item.quantity,
-        price: item.product.price,
-        priceIncludeVAT: item.product.priceAfterDiscount || item.product.price,
-        note: "",
-        vat: 10,
-        name: item.product.title.trim(),
-        productCode: item.product.code,
-        unitName: item.product.unitName || "Cái",
-      }));
-
-      const finalCustomerName =
-        customerInfo.customerName || "Người mua không cung cấp thông tin";
-      const finalCustomerPhone = customerInfo.customerPhone || "0000000000";
-
-      const orderData: any = {
-        customerName: finalCustomerName,
-        customerPhone: finalCustomerPhone,
-        products,
-        note: "",
-        paymentMethod: 0,
-        priceIncludeVAT: true,
-        discountType: 0,
-        discount: 0,
-        discountVAT: 0,
-        orderCustomerName: finalCustomerName,
-        orderCustomerPhone: finalCustomerPhone,
-        isDelivery: false,
-        debt: {
-          debit: 0,
-          debitExpire: new Date().toISOString(),
-        },
-        delivery: {
-          deliveryId: 0,
-          deliveryName: "",
-          deliveryCode: "",
-          deliveryFee: 0,
-          cod: false,
-        },
-        flashSales: [],
-      };
-
-      if (selectedTable?.id) {
-        orderData.tableId = selectedTable.id;
-      }
-
-      console.log("🍽️ Creating order for payment flow:", orderData);
-      const response = await ordersService.createOrder(orderData);
-
-      if (response.successful && response.data) {
-        const orderId = response.data.id;
-
-        // Bước 2: Call API In chế biến (tạm thời comment để tránh lỗi 404)
-        try {
-          console.log("🍳 Kitchen print API call for order:", orderId);
-          // await ordersService.printKitchen(orderId);
-          console.log("✅ Đã in chế biến");
-        } catch (kitchenError: any) {
-          console.error("❌ Kitchen print error:", kitchenError);
-          console.log("⚠️ Đã in chế biến (simulated)"); // Fallback log
-        }
-
-        // Bước 3: Reset customer info và clear order
-        setShouldResetCustomerInfo(true);
-        setCustomerInfo({
-          customerName: "",
-          customerPhone: "",
-          customerAddress: "",
-        });
-        onClearOrder?.();
-
-        // Bước 4: Thông báo cho home.tsx để chuyển đến chi tiết đơn hàng và mở thanh toán
-        onClose();
-        onOrderCreated?.(orderId, true); // Pass thêm flag để biết cần mở thanh toán
-
-        console.log("✅ Payment flow completed for order:", orderId);
-      } else {
-        throw new Error(response.error || "Không thể tạo đơn hàng");
-      }
-    } catch (error: any) {
-      console.error("❌ Error in payment create flow:", error);
       Alert.alert(
         "Lỗi",
         error.message || "Có lỗi xảy ra khi tạo đơn hàng. Vui lòng thử lại."
@@ -1425,6 +1380,8 @@ export default function UnifiedOrderModal({
       );
     }
 
+    // Kiểm tra thông tin của CustomerInfoModal sau đó thực hiện chuyển sang giao diện của tablet chỉ hiển thị trong phần phiếu order nằm ở trên section {/* Summary Section */}
+
     // Sử dụng OrderActionButtons component mới
     return (
       <OrderActionButtons
@@ -1433,6 +1390,68 @@ export default function UnifiedOrderModal({
         products={displayItems}
         onAction={handleOrderAction}
       />
+    );
+  };
+
+  // Render right side content for tablet layout
+  const renderRightSideContent = () => {
+    if (!isTablet) return null;
+
+    return (
+      <View style={styles.rightSideContainer}>
+        {/* Order Info Section */}
+        {selectedOrder && renderOrderDetails()}
+
+        {/* Back to Menu and Customer Info Section for new orders */}
+        {selectedTable && !selectedOrder && (
+          <View style={styles.tabletBackToMenuAndCustomerInfoContainer}>
+            <TouchableOpacity
+              style={styles.tabletBackToMenuContainer}
+              onPress={onClose}
+            >
+              <Ionicons name="arrow-back" size={26} color="#198754" />
+              <Text style={styles.backToMenuText}>Quay lại</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.tabletBackToCustomerInfoContainer}
+              onPress={() => setCustomerInfoModalVisible(true)}
+            >
+              <Ionicons name="person-add" size={26} color="#198754" />
+              <Text style={styles.customerInfoText}>Khách hàng</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {/* Summary Section */}
+        {displayItems.length > 0 && (
+          <View style={styles.tabletSummarySection}>
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryLabel}>Tiền hàng:</Text>
+              <Text style={styles.summaryValue}>
+                {formatPriceUtil(subtotal)}
+              </Text>
+            </View>
+
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryLabel}>Tiền thuế:</Text>
+              <Text style={styles.summaryValue}>
+                {formatPriceUtil(taxAmount)}
+              </Text>
+            </View>
+
+            <View style={[styles.summaryRow, styles.totalRow]}>
+              <Text style={styles.totalLabel}>Phải thu:</Text>
+              <Text style={styles.totalValue}>
+                {formatPriceUtil(totalAmount)}
+              </Text>
+            </View>
+          </View>
+        )}
+
+        {/* Action Buttons */}
+        <View style={styles.tabletFooter}>{renderActionButtons()}</View>
+      </View>
     );
   };
 
@@ -1445,7 +1464,7 @@ export default function UnifiedOrderModal({
         onRequestClose={onClose}
       >
         <View style={styles.container}>
-          {/* Header */}
+          {/* Header - Same for both layouts */}
           <View style={styles.header}>
             {title ? (
               <Text style={styles.headerTitle}>{title}</Text>
@@ -1462,15 +1481,6 @@ export default function UnifiedOrderModal({
               <Text style={styles.headerTitle}>Tạo đơn hàng mới</Text>
             )}
             <View style={styles.headerActions}>
-              {/* Customer Info Icon - Only show for new orders */}
-              {/* {!selectedOrder && (
-              <TouchableOpacity
-                style={styles.customerInfoButton}
-                onPress={() => setCustomerInfoModalVisible(true)}
-              >
-                <Ionicons name="person-add" size={20} color="#198754" />
-              </TouchableOpacity>
-            )} */}
               <TouchableOpacity style={styles.closeButton} onPress={onClose}>
                 <Ionicons name="close" size={24} color="#333" />
               </TouchableOpacity>
@@ -1485,85 +1495,146 @@ export default function UnifiedOrderModal({
               </Text>
             </View>
           ) : (
-            <View style={styles.contentContainer}>
-              {/* Thông tin chi tiết đơn hàng (chỉ hiển thị khi xem từ tab đơn hàng) */}
-              {selectedOrder && renderOrderDetails()}
+            <View
+              style={
+                isTablet
+                  ? styles.tabletContentContainer
+                  : styles.contentContainer
+              }
+            >
+              {isTablet ? (
+                // Tablet Layout: 2-column layout
+                <>
+                  {/* Left Side: Order Items List (2 parts) */}
+                  <View style={styles.leftSideContainer}>
+                    {/* Mobile-style order info for tablets - shown above list */}
+                    {/* {selectedOrder && (
+                      <View style={styles.tabletOrderInfoHeader}>
+                        {renderOrderDetails()}
+                      </View>
+                    )} */}
 
-              {/* Order Items List */}
-              {displayItems.length > 0 ? (
-                <FlatList
-                  data={displayItems}
-                  renderItem={renderOrderItem}
-                  keyExtractor={(item) => item.id}
-                  style={styles.itemsList}
-                  contentContainerStyle={styles.itemsListContent}
-                  showsVerticalScrollIndicator={true}
-                  bounces={true}
-                  scrollEnabled={true}
-                  nestedScrollEnabled={true}
-                  removeClippedSubviews={false}
-                />
+                    {/* Order Items List */}
+                    {displayItems.length > 0 ? (
+                      <FlatList
+                        data={displayItems}
+                        renderItem={renderOrderItem}
+                        keyExtractor={(item) => item.id}
+                        style={styles.tabletItemsList}
+                        contentContainerStyle={styles.itemsListContent}
+                        showsVerticalScrollIndicator={true}
+                        bounces={true}
+                        scrollEnabled={true}
+                        nestedScrollEnabled={true}
+                        removeClippedSubviews={false}
+                      />
+                    ) : (
+                      <View style={styles.emptyState}>
+                        <Ionicons
+                          name="restaurant-outline"
+                          size={48}
+                          color="#ccc"
+                        />
+                        <Text style={styles.emptyText}>
+                          Chưa có món nào được chọn
+                        </Text>
+                        <Text style={styles.emptySubtext}>
+                          Vui lòng chọn món từ thực đơn
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+
+                  {/* Right Side: Summary and Actions (1 part) */}
+                  {renderRightSideContent()}
+                </>
               ) : (
-                <View style={styles.emptyState}>
-                  <Ionicons name="restaurant-outline" size={48} color="#ccc" />
-                  <Text style={styles.emptyText}>
-                    Chưa có món nào được chọn
-                  </Text>
-                  <Text style={styles.emptySubtext}>
-                    Vui lòng chọn món từ thực đơn
-                  </Text>
-                </View>
+                // Mobile Layout: Keep original structure unchanged
+                <>
+                  {/* Thông tin chi tiết đơn hàng (chỉ hiển thị khi xem từ tab đơn hàng) */}
+                  {selectedOrder && renderOrderDetails()}
+
+                  {/* Order Items List */}
+                  {displayItems.length > 0 ? (
+                    <FlatList
+                      data={displayItems}
+                      renderItem={renderOrderItem}
+                      keyExtractor={(item) => item.id}
+                      style={styles.itemsList}
+                      contentContainerStyle={styles.itemsListContent}
+                      showsVerticalScrollIndicator={true}
+                      bounces={true}
+                      scrollEnabled={true}
+                      nestedScrollEnabled={true}
+                      removeClippedSubviews={false}
+                    />
+                  ) : (
+                    <View style={styles.emptyState}>
+                      <Ionicons
+                        name="restaurant-outline"
+                        size={48}
+                        color="#ccc"
+                      />
+                      <Text style={styles.emptyText}>
+                        Chưa có món nào được chọn
+                      </Text>
+                      <Text style={styles.emptySubtext}>
+                        Vui lòng chọn món từ thực đơn
+                      </Text>
+                    </View>
+                  )}
+
+                  {/* Flex row:  Icon back to menu and Icon customer info */}
+                  {selectedTable && !selectedOrder && (
+                    <View style={styles.backToMenuAndCustomerInfoContainer}>
+                      <TouchableOpacity
+                        style={styles.backToMenuContainer}
+                        onPress={onClose}
+                      >
+                        <Ionicons name="arrow-back" size={26} color="#198754" />
+                        <Text style={styles.backToMenuText}>Quay lại</Text>
+                      </TouchableOpacity>
+
+                      <TouchableOpacity
+                        style={styles.backToCustomerInfoContainer}
+                        onPress={() => setCustomerInfoModalVisible(true)}
+                      >
+                        <Ionicons name="person-add" size={26} color="#198754" />
+                        <Text style={styles.customerInfoText}>Khách hàng</Text>
+                      </TouchableOpacity>
+                    </View>
+                  )}
+
+                  {/* Summary Section */}
+                  {displayItems.length > 0 && (
+                    <View style={styles.summarySection}>
+                      <View style={styles.summaryRow}>
+                        <Text style={styles.summaryLabel}>Tiền hàng:</Text>
+                        <Text style={styles.summaryValue}>
+                          {formatPriceUtil(subtotal)}
+                        </Text>
+                      </View>
+
+                      <View style={styles.summaryRow}>
+                        <Text style={styles.summaryLabel}>Tiền thuế:</Text>
+                        <Text style={styles.summaryValue}>
+                          {formatPriceUtil(taxAmount)}
+                        </Text>
+                      </View>
+
+                      <View style={[styles.summaryRow, styles.totalRow]}>
+                        <Text style={styles.totalLabel}>Phải thu:</Text>
+                        <Text style={styles.totalValue}>
+                          {formatPriceUtil(totalAmount)}
+                        </Text>
+                      </View>
+                    </View>
+                  )}
+
+                  {/* Footer Actions */}
+                  <View style={[styles.footer]}>{renderActionButtons()}</View>
+                </>
               )}
-
-              {/* Flex row:  Icon back to menu and Icon customer info */}
-              {selectedTable && !selectedOrder && (
-                <View style={styles.backToMenuAndCustomerInfoContainer}>
-                  <TouchableOpacity
-                    style={styles.backToMenuContainer}
-                    onPress={onClose}
-                  >
-                    <Ionicons name="arrow-back" size={26} color="#198754" />
-                    <Text style={styles.backToMenuText}>Quay lại</Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    style={styles.backToCustomerInfoContainer}
-                    onPress={() => setCustomerInfoModalVisible(true)}
-                  >
-                    <Ionicons name="person-add" size={26} color="#198754" />
-                    <Text style={styles.customerInfoText}>Khách hàng</Text>
-                  </TouchableOpacity>
-                </View>
-              )}
-
-              {/* Summary Section */}
-              {displayItems.length > 0 && (
-                <View style={styles.summarySection}>
-                  <View style={styles.summaryRow}>
-                    <Text style={styles.summaryLabel}>Tiền hàng:</Text>
-                    <Text style={styles.summaryValue}>
-                      {formatPriceUtil(subtotal)}
-                    </Text>
-                  </View>
-
-                  <View style={styles.summaryRow}>
-                    <Text style={styles.summaryLabel}>Tiền thuế:</Text>
-                    <Text style={styles.summaryValue}>
-                      {formatPriceUtil(taxAmount)}
-                    </Text>
-                  </View>
-
-                  <View style={[styles.summaryRow, styles.totalRow]}>
-                    <Text style={styles.totalLabel}>Phải thu:</Text>
-                    <Text style={styles.totalValue}>
-                      {formatPriceUtil(totalAmount)}
-                    </Text>
-                  </View>
-                </View>
-              )}
-
-              {/* Footer Actions */}
-              <View style={[styles.footer]}>{renderActionButtons()}</View>
             </View>
           )}
 
@@ -1573,6 +1644,7 @@ export default function UnifiedOrderModal({
             totalAmount={totalAmount}
             onClose={() => setPaymentModalVisible(false)}
             onPayment={handlePayment}
+            orderId={selectedOrder?.id}
           />
 
           {/* Customer Info Modal */}
@@ -1610,6 +1682,90 @@ const styles = StyleSheet.create({
   contentContainer: {
     flex: 1,
   },
+  // New tablet-specific styles
+  tabletContentContainer: {
+    flex: 1,
+    flexDirection: "row",
+    backgroundColor: "#f8f9fa",
+    // marginTop: isTablet ? 12 : 0,
+  },
+  leftSideContainer: {
+    flex: 1,
+    backgroundColor: "#fff",
+    marginTop: isTablet ? 12 : 0,
+  },
+  rightSideContainer: {
+    flex: 1,
+    backgroundColor: "#f8f9fa",
+    borderLeftWidth: 1,
+    borderLeftColor: "#e9ecef",
+  },
+  tabletOrderInfoHeader: {
+    backgroundColor: "#fff",
+    borderBottomWidth: 1,
+    borderBottomColor: "#f0f0f0",
+  },
+  tabletItemsList: {
+    flex: 1,
+    backgroundColor: "#fff",
+    marginVertical: isTablet ? 12 : 0,
+  },
+  tabletBackToMenuAndCustomerInfoContainer: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginHorizontal: 16,
+    marginVertical: 12,
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: "#e9ecef",
+  },
+  tabletBackToMenuContainer: {
+    flexDirection: "column",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#fff",
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  tabletBackToCustomerInfoContainer: {
+    flexDirection: "column",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#fff",
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  tabletSummarySection: {
+    backgroundColor: "#fff",
+    marginHorizontal: 16,
+    marginVertical: 12,
+    paddingHorizontal: 28,
+    paddingVertical: 16,
+    // borderRadius: 8,
+    // shadowColor: "#000",
+    // shadowOffset: { width: 0, height: 1 },
+    // shadowOpacity: 0.1,
+    // shadowRadius: 2,
+    // elevation: 2,
+  },
+  tabletFooter: {
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    marginTop: "auto", // Push to bottom
+  },
   header: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -1624,7 +1780,6 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "bold",
     color: "#333",
-    // flex: 1,
     marginBottom: 3,
   },
   headerActions: {
@@ -1632,15 +1787,14 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 8,
   },
-  // customerInfoButton: {
-  //   padding: 8,
-  // },
   closeButton: {
     padding: 4,
   },
   // Order details styles
   orderInfoContainer: {
     backgroundColor: "#fff",
+    marginHorizontal: isTablet ? 16 : 0,
+    marginTop: isTablet ? 12 : 0,
     paddingHorizontal: 20,
     paddingVertical: isTablet ? 5 : 10,
     borderBottomWidth: 1,
@@ -1651,6 +1805,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
     marginBottom: isTablet ? 2 : 5,
+    paddingHorizontal: isTablet ? 12 : 0,
   },
   orderInfoLabel: {
     fontSize: 15,
@@ -1702,7 +1857,6 @@ const styles = StyleSheet.create({
   // Swipeable item styles
   swipeContainer: {
     backgroundColor: "#fff",
-    // marginBottom: 1,
   },
   deleteBackground: {
     position: "absolute",
@@ -1737,6 +1891,16 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: "#f0f0f0",
     backgroundColor: "#fff",
+  },
+  itemNumberContainer: {
+    alignSelf: "flex-start",
+    marginRight: 12,
+  },
+  itemNumber: {
+    fontSize: 12,
+    fontWeight: "bold",
+    color: "#000",
+    lineHeight: 18,
   },
   itemInfo: {
     flex: 1,
@@ -1827,8 +1991,6 @@ const styles = StyleSheet.create({
     color: "#333",
   },
   totalRow: {
-    // borderTopWidth: 1,
-    // borderTopColor: "#f0f0f0",
     paddingTop: 0,
     marginBottom: 0,
   },
@@ -1843,7 +2005,6 @@ const styles = StyleSheet.create({
     color: "#198754",
   },
   footer: {
-    // paddingHorizontal: 20,
     paddingTop: 16,
     backgroundColor: "#fff",
     borderTopWidth: 1,

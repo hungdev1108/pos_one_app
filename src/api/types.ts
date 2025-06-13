@@ -343,6 +343,7 @@ export interface OrderDetail {
   sendDate?: string;
   receiveDate?: string;
   cancelDate?: string;
+  orderType?: string;
 }
 
 // F&B Config Interface
@@ -492,3 +493,22 @@ export interface CreateOrderResponse {
     createDate: string;
   };
 } 
+
+// Order Type Interface
+export interface OrderType {
+  id: string;
+  sourceId: string;
+  titles: [
+    {
+      languageCode: string;
+      title: string;
+    }
+  ];
+}
+
+// Payment Method Interface
+export interface PaymentMethod {
+  qr: string;
+  paymentId: string;
+  apptransid: string;
+}
