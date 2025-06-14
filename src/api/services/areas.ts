@@ -2,8 +2,8 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { apiClient } from "../client";
 import { STORAGE_KEYS } from "../constants";
 import {
-    Area,
-    Table
+  Area,
+  Table
 } from "../types";
 import { extractUserInfo } from "../utils/jwt";
 
@@ -21,7 +21,7 @@ export class AreasService {
       const userInfo = extractUserInfo(token);
       // Giả sử BranchId được lưu trong claims, nếu không có thì cần điều chỉnh
       // Tạm thời sử dụng một ID mặc định hoặc có thể lấy từ user info
-      console.log('🏢 User info:', userInfo?.branchId);
+      // console.log('🏢 User info:', userInfo?.branchId);
       return userInfo?.branchId || '5095d0bc-50c3-4023-89df-6843bcbef89a'; // ID mặc định
     } catch (error) {
       console.error('Error getting branch ID:', error);
@@ -33,7 +33,7 @@ export class AreasService {
    * Lấy danh sách khu vực và bàn
    */
   async getAreas(): Promise<Area[]> {
-    console.log('🏢 Getting areas and tables...');
+    // console.log('🏢 Getting areas and tables...');
     
     try {
       const branchId = await this.getBranchId();
@@ -45,7 +45,7 @@ export class AreasService {
         `/api/orders/areas/branches/${branchId}`
       );
       
-      console.log('🏢 Areas response:', response);
+      // console.log('🏢 Areas response:', response);
       
       if (Array.isArray(response)) {
         // Sắp xếp theo priority
@@ -58,7 +58,7 @@ export class AreasService {
           }
         });
 
-        console.log('✅ Areas loaded:', sortedAreas.length);
+        // console.log('✅ Areas loaded:', sortedAreas.length);
         return sortedAreas;
       } else {
         console.warn('⚠️ Areas response is not an array:', response);
@@ -74,14 +74,14 @@ export class AreasService {
    * Lấy chi tiết một khu vực
    */
   async getAreaDetail(areaId: string): Promise<Area | null> {
-    console.log('🏢 Getting area detail:', areaId);
+    // console.log('🏢 Getting area detail:', areaId);
     
     try {
       const response = await apiClient.get<Area>(
         `/api/orders/areas/${areaId}`
       );
       
-      console.log('🏢 Area detail response:', response);
+      // console.log('🏢 Area detail response:', response);
       
       if (response && typeof response === 'object') {
         // Sắp xếp tables theo priority
@@ -89,7 +89,7 @@ export class AreasService {
           response.tables.sort((a, b) => a.priority - b.priority);
         }
 
-        console.log('✅ Area detail loaded:', response.name);
+        // console.log('✅ Area detail loaded:', response.name);
         return response;
       } else {
         console.warn('⚠️ Area detail response not valid:', response);
@@ -105,7 +105,7 @@ export class AreasService {
    * Lấy danh sách bàn theo khu vực
    */
   async getTablesByArea(areaId: string): Promise<Table[]> {
-    console.log('🪑 Getting tables by area:', areaId);
+    // console.log('🪑 Getting tables by area:', areaId);
     
     try {
       const branchId = await this.getBranchId();
@@ -117,13 +117,13 @@ export class AreasService {
         `/api/orders/tables/branches/${branchId}/areas/${areaId}`
       );
       
-      console.log('🪑 Tables response:', response);
+      // console.log('🪑 Tables response:', response);
       
       if (Array.isArray(response)) {
         // Sắp xếp theo priority
         const sortedTables = response.sort((a, b) => a.priority - b.priority);
 
-        console.log('✅ Tables loaded:', sortedTables.length);
+        // console.log('✅ Tables loaded:', sortedTables.length);
         return sortedTables;
       } else {
         console.warn('⚠️ Tables response is not an array:', response);
@@ -139,17 +139,17 @@ export class AreasService {
    * Lấy chi tiết một bàn
    */
   async getTableDetail(tableId: string): Promise<Table | null> {
-    console.log('🪑 Getting table detail:', tableId);
+    // console.log('🪑 Getting table detail:', tableId);
     
     try {
       const response = await apiClient.get<Table>(
         `/api/orders/tables/${tableId}`
       );
       
-      console.log('🪑 Table detail response:', response);
+      // console.log('🪑 Table detail response:', response);
       
       if (response && typeof response === 'object') {
-        console.log('✅ Table detail loaded:', response.name);
+        // console.log('✅ Table detail loaded:', response.name);
         return response;
       } else {
         console.warn('⚠️ Table detail response not valid:', response);

@@ -2,7 +2,6 @@ import { Area, Table, TableStatus } from "@/src/api/types";
 import { FontAwesome6, Ionicons } from "@expo/vector-icons";
 import React, { useEffect, useState } from "react";
 import {
-  ActivityIndicator,
   Dimensions,
   FlatList,
   Image,
@@ -11,7 +10,7 @@ import {
   StyleSheet,
   Text,
   TouchableOpacity,
-  View,
+  View
 } from "react-native";
 
 interface AreasTablesViewProps {
@@ -418,14 +417,14 @@ const AreasTablesView: React.FC<AreasTablesViewProps> = ({
     );
   };
 
-  if (loading) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#198754" />
-        <Text style={styles.loadingText}>Đang tải khu vực và bàn...</Text>
-      </View>
-    );
-  }
+  // if (loading) {
+  //   return (
+  //     <View style={styles.loadingContainer}>
+  //       <ActivityIndicator size="large" color="#198754" />
+  //       <Text style={styles.loadingText}>Đang tải khu vực và bàn...</Text>
+  //     </View>
+  //   );
+  // }
 
   if (areas.length === 0) {
     return (

@@ -33,7 +33,7 @@ import {
   calculateOrderSummary,
   formatPrice as formatPriceUtil,
 } from "../../utils/orderCalculations";
-import CustomerInfoModal from "./CustomerInfoModal";
+import CustomerInfoSection from "./CustomerInfoModal";
 import KitchenPrintModal from "./KitchenPrintModal";
 import OrderActionButtons from "./OrderActionButtons";
 import PaymentModal from "./PaymentModal";
@@ -1402,6 +1402,17 @@ export default function UnifiedOrderModal({
         {/* Order Info Section */}
         {selectedOrder && renderOrderDetails()}
 
+        <View style={styles.customerInfoSection}>
+        {/* Customer Info Section */}
+        <View>
+          <Text>Customer Info Section</Text>
+        </View>
+        <CustomerInfoSection
+          initialData={customerInfo}
+          onSave={handleCustomerInfoSave}
+          shouldReset={shouldResetCustomerInfo}
+        /></View>
+
         {/* Back to Menu and Customer Info Section for new orders */}
         {selectedTable && !selectedOrder && (
           <View style={styles.tabletBackToMenuAndCustomerInfoContainer}>
@@ -1647,14 +1658,14 @@ export default function UnifiedOrderModal({
             orderId={selectedOrder?.id}
           />
 
-          {/* Customer Info Modal */}
-          <CustomerInfoModal
-            visible={customerInfoModalVisible}
-            initialData={customerInfo}
-            onClose={() => setCustomerInfoModalVisible(false)}
-            onSave={handleCustomerInfoSave}
-            shouldReset={shouldResetCustomerInfo}
-          />
+          {/* Customer Info Modal
+          {customerInfoModalVisible && (
+            <CustomerInfoSection
+              initialData={customerInfo}
+              onSave={handleCustomerInfoSave}
+              shouldReset={shouldResetCustomerInfo}
+            />
+          )} */}
 
           {/* Kitchen Print Modal */}
           {kitchenPrintData && (
@@ -2108,5 +2119,12 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: "#198754",
     marginTop: 1,
+  },
+  customerInfoSection: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginHorizontal: 20,
+    marginVertical: 5,
   },
 });

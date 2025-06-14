@@ -10,6 +10,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
@@ -52,10 +53,11 @@ const AllCategoriesProductList: React.FC<AllCategoriesProductListProps> = ({
   const scrollViewRef = useRef<ScrollView>(null);
   const categoryRefs = useRef<{ [categoryId: string]: number }>({});
   const [activeProductId, setActiveProductId] = useState<string | null>(null);
+  const [editingQuantityId, setEditingQuantityId] = useState<string | null>(null);
+  const [inputQuantity, setInputQuantity] = useState<string>("");
   const [tabletSelectedCategoryId, setTabletSelectedCategoryId] = useState<
     string | null
   >(null);
-  const [showAllCategories, setShowAllCategories] = useState(false);
 
   // Scroll to selected category when selectedCategoryId changes
   useEffect(() => {
@@ -70,17 +72,12 @@ const AllCategoriesProductList: React.FC<AllCategoriesProductListProps> = ({
     }
   }, [selectedCategoryId]);
 
-  // Initialize tablet to show all categories by default
+  // Initialize tablet to show first category by default
   useEffect(() => {
-    if (
-      isTablet &&
-      categories.length > 0 &&
-      !tabletSelectedCategoryId &&
-      !showAllCategories
-    ) {
-      setShowAllCategories(true);
+    if (isTablet && categories.length > 0 && !tabletSelectedCategoryId) {
+      setTabletSelectedCategoryId(categories[0].id);
     }
-  }, [categories, isTablet, tabletSelectedCategoryId, showAllCategories]);
+  }, [categories, isTablet, tabletSelectedCategoryId]);
 
   const getImageSource = (product: Product) => {
     // Priority 1: Use BASE_URL + fullPath if available
@@ -142,6 +139,34 @@ const AllCategoriesProductList: React.FC<AllCategoriesProductListProps> = ({
     }
   };
 
+  const handleDeleteQuantity = (productId: string) => {
+    onUpdateQuantity?.(productId, 0);
+    setActiveProductId(null);
+  };
+
+  const handleQuantityEdit = (productId: string) => {
+    const currentQuantity = getItemQuantity(productId);
+    setEditingQuantityId(productId);
+    setInputQuantity(currentQuantity.toString());
+  };
+
+  const handleQuantitySubmit = (productId: string) => {
+    const newQuantity = parseInt(inputQuantity) || 0;
+    if (newQuantity >= 0) {
+      onUpdateQuantity?.(productId, newQuantity);
+      if (newQuantity === 0) {
+        setActiveProductId(null);
+      }
+    }
+    setEditingQuantityId(null);
+    setInputQuantity("");
+  };
+
+  const handleQuantityCancel = () => {
+    setEditingQuantityId(null);
+    setInputQuantity("");
+  };
+
   const renderQuantityControls = (product: Product) => {
     const quantity = getItemQuantity(product.id);
     const isActive = activeProductId === product.id;
@@ -158,20 +183,44 @@ const AllCategoriesProductList: React.FC<AllCategoriesProductListProps> = ({
     }
 
     if (isActive) {
+      const isEditing = editingQuantityId === product.id;
+      
       return (
         <View style={styles.quantityControlsContainer}>
           <TouchableOpacity
-            style={styles.quantityButton}
+            style={styles.deleteButton}
+            onPress={() => handleDeleteQuantity(product.id)}
+          >
+            <Ionicons name="trash" size={18} color="#dc3545" />
+          </TouchableOpacity>
+          
+          {isEditing ? (
+            <View style={styles.quantityInputContainer}>
+              <TextInput
+                style={styles.quantityInput}
+                value={inputQuantity}
+                onChangeText={setInputQuantity}
+                keyboardType="numeric"
+                autoFocus={true}
+                selectTextOnFocus={true}
+                onSubmitEditing={() => handleQuantitySubmit(product.id)}
+                onBlur={() => handleQuantitySubmit(product.id)}
+              />
+            </View>
+          ) : (
+            <TouchableOpacity
+              style={styles.quantityDisplayButton}
+              onPress={() => handleQuantityEdit(product.id)}
+            >
+              <Text style={styles.quantityText}>{quantity}</Text>
+            </TouchableOpacity>
+          )}
+          
+          <TouchableOpacity
+            style={styles.decreaseButton}
             onPress={() => handleDecreaseQuantity(product.id)}
           >
-            <Ionicons name="remove" size={20} color="#999" bold={true} />
-          </TouchableOpacity>
-          <Text style={styles.quantityText}>{quantity}</Text>
-          <TouchableOpacity
-            style={styles.quantityButton}
-            onPress={() => handleIncreaseQuantity(product)}
-          >
-            <Ionicons name="add" size={20} color="#999" bold={true} />
+            <Ionicons name="remove" size={18} color="#dc3545" />
           </TouchableOpacity>
         </View>
       );
@@ -194,14 +243,16 @@ const AllCategoriesProductList: React.FC<AllCategoriesProductListProps> = ({
     const formattedPrice = price.toLocaleString("vi-VN");
 
     return (
-      <TouchableOpacity
+      <View
         key={product.id}
         style={styles.productItem}
-        onPress={() => {
-          onProductSelect(product);
-        }}
+        // activeOpacity={1}
+        // onPress={() => {
+        //   onProductSelect(product);
+        // }}
       >
         <View style={styles.productCard}>
+          <TouchableOpacity onPress= {() => handleIncreaseQuantity(product)}>
           <View style={styles.imageContainer}>
             {imageSource ? (
               <ExpoImage
@@ -209,7 +260,7 @@ const AllCategoriesProductList: React.FC<AllCategoriesProductListProps> = ({
                 style={styles.productImage}
                 contentFit="contain"
                 contentPosition="center"
-                transition={200}
+                // transition={200}
               />
             ) : (
               <View style={styles.placeholderImage}>
@@ -219,20 +270,20 @@ const AllCategoriesProductList: React.FC<AllCategoriesProductListProps> = ({
           </View>
           <View style={styles.productInfo}>
             <Text style={styles.productTitle} numberOfLines={2}>
-              {product.title}
+              {product.title} 
             </Text>
             <Text style={styles.productPrice}>{formattedPrice}</Text>
           </View>
+          </TouchableOpacity>
           {renderQuantityControls(product)}
         </View>
-      </TouchableOpacity>
+      </View>
     );
   };
 
   // Tablet: Render category sidebar item
   const renderTabletCategoryItem = (category: Category) => {
-    const isSelected =
-      tabletSelectedCategoryId === category.id && !showAllCategories;
+    const isSelected = tabletSelectedCategoryId === category.id;
 
     return (
       <TouchableOpacity
@@ -243,7 +294,6 @@ const AllCategoriesProductList: React.FC<AllCategoriesProductListProps> = ({
         ]}
         onPress={() => {
           setTabletSelectedCategoryId(category.id);
-          setShowAllCategories(false);
         }}
       >
         <Text
@@ -259,17 +309,8 @@ const AllCategoriesProductList: React.FC<AllCategoriesProductListProps> = ({
     );
   };
 
-  // Tablet: Render products for selected category or all categories
+  // Tablet: Render products for selected category
   const renderTabletSelectedCategoryProducts = () => {
-    // If "Tất cả" is selected, show all categories like mobile
-    if (showAllCategories) {
-      return (
-        <View style={styles.tabletProductsContainer}>
-          {categories.map((category, index) => renderCategory(category, index))}
-        </View>
-      );
-    }
-
     // Show specific category products
     if (!tabletSelectedCategoryId) return null;
 
@@ -391,30 +432,6 @@ const AllCategoriesProductList: React.FC<AllCategoriesProductListProps> = ({
             style={styles.tabletCategoriesScrollView}
             showsVerticalScrollIndicator={false}
           >
-            {/* "Tất cả" button */}
-            <TouchableOpacity
-              style={[
-                styles.tabletCategoryItem,
-                showAllCategories && styles.tabletCategoryItemSelected,
-              ]}
-              onPress={() => {
-                setShowAllCategories(true);
-                setTabletSelectedCategoryId(null);
-              }}
-            >
-              <Text
-                style={[
-                  styles.tabletCategoryText,
-                  showAllCategories && styles.tabletCategoryTextSelected,
-                ]}
-              >
-                Tất cả
-              </Text>
-              {showAllCategories && (
-                <View style={styles.tabletCategoryIndicator} />
-              )}
-            </TouchableOpacity>
-
             {categories.map((category) => renderTabletCategoryItem(category))}
           </ScrollView>
         </View>
@@ -501,7 +518,7 @@ const styles = StyleSheet.create({
   imageContainer: {
     padding: 5,
     width: "100%",
-    height: isTablet ? ITEM_WIDTH_tablet * 0.7 : ITEM_WIDTH * 0.7,
+    height: isTablet ? ITEM_WIDTH_tablet * 0.5 : ITEM_WIDTH * 0.6,
     // backgroundColor: "#f0f0f0",
   },
   productImage: {
@@ -519,18 +536,24 @@ const styles = StyleSheet.create({
     padding: 12,
   },
   productTitle: {
-    fontSize: 14,
+    fontSize: 16,
+    // litmit number of lines to 2
+    // numberOfLines: 2,
     fontWeight: "500",
     color: "#333",
-    marginBottom: 8,
+    marginBottom: 14,
     lineHeight: 18,
+    textAlign: "center",
+    height: 34,
   },
   productPrice: {
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: "bold",
     color: "#198754",
+    textAlign: "center",
   },
   addButton: {
+    display: "none",
     position: "absolute",
     bottom: 10,
     right: 10,
@@ -550,34 +573,30 @@ const styles = StyleSheet.create({
     position: "absolute",
     bottom: 10,
     right: 10,
-    backgroundColor: "#fff",
+    backgroundColor: "#dc3545",
     borderRadius: 16,
     width: 30,
     height: 30,
     justifyContent: "center",
     alignItems: "center",
-    borderWidth: 1,
-    borderColor: "#198754",
+   
   },
   quantityBadgeText: {
-    color: "#333",
+    color: "#fff",
     fontSize: 14,
     fontWeight: "bold",
   },
   quantityControlsContainer: {
     position: "absolute",
     bottom: 10,
-    right: 10,
+    left: 0,
+    right: 0,
     flexDirection: "row",
+    justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "#ffffff",
-    borderRadius: 20,
-    paddingHorizontal: 2,
-    paddingVertical: 2,
-    borderWidth: 1,
-    borderColor: "#198754",
-    width: 90,
-    justifyContent: "space-between",
+    paddingHorizontal: 8,
+    zIndex: 10,
+    elevation: 10,
   },
   quantityButton: {
     color: "#333",
@@ -587,12 +606,74 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
+  decreaseButton: {
+    backgroundColor: "#e9ecef",
+    // borderWidth: 1,
+    borderColor: "#e9ecef",
+    borderRadius: 20,
+    width: 30,
+    height: 30,
+    justifyContent: "center",
+    alignItems: "center",
+    marginLeft: 14,
+    
+  },
+  deleteButton: {
+    backgroundColor: "#e9ecef",
+    borderRadius: 20,
+    borderColor: "#dc3545",
+    width: 30,
+    height: 30,
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 14,
+  },
+  increaseButton: {
+    backgroundColor: "#198754",
+    borderRadius: 20,
+    width: 28,
+    height: 28,
+    justifyContent: "center",
+    alignItems: "center",
+    marginLeft: 14,
+  },
+  quantityDisplayButton: {
+    backgroundColor: "#f8f9fa",
+    borderRadius: 4,
+    borderWidth: 1,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderColor: "#28a745",
+    justifyContent: "center",
+    alignItems: "center",
+    width: 60,
+    minWidth: 60,
+  },
+  quantityInputContainer: {
+    backgroundColor: "#f8f9fa",
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: "#28a745",
+    paddingHorizontal: 4,
+    paddingVertical: 2,
+    justifyContent: "center",
+    alignItems: "center",
+    width: 60,
+    minWidth: 60,
+  },
+  quantityInput: {
+    fontSize: 14,
+    fontWeight: "bold",
+    color: "#333",
+    textAlign: "center",
+    width: "100%",
+    paddingHorizontal: 4,
+    paddingVertical: 2,
+  },
   quantityText: {
     fontSize: 14,
     fontWeight: "bold",
     color: "#333",
-    paddingHorizontal: 5,
-    minWidth: 20,
     textAlign: "center",
   },
   emptySectionContainer: {
