@@ -112,6 +112,7 @@ const CategoryBottomSheet: React.FC<CategoryBottomSheetProps> = ({
             ) : (
               <FlatList
                 data={categories}
+                removeClippedSubviews={true}
                 renderItem={renderCategoryItem}
                 keyExtractor={(item) => item.id}
                 numColumns={numColumns}

@@ -1526,7 +1526,7 @@ export default function UnifiedOrderModal({
                         bounces={true}
                         scrollEnabled={true}
                         nestedScrollEnabled={true}
-                        removeClippedSubviews={false}
+                        removeClippedSubviews={true}
                       />
                     ) : (
                       <View style={styles.emptyState}>
@@ -1566,7 +1566,7 @@ export default function UnifiedOrderModal({
                       bounces={true}
                       scrollEnabled={true}
                       nestedScrollEnabled={true}
-                      removeClippedSubviews={false}
+                      removeClippedSubviews={true}
                     />
                   ) : (
                     <View style={styles.emptyState}>

@@ -22,13 +22,13 @@ const OrientationProvider: React.FC<OrientationProviderProps> = ({
   const shouldReallyShowModal =
     !disabled && shouldShowModal && isReallyTabletSize;
 
-  console.log("🛡️ OrientationProvider Safeguard:", {
-    shouldShowModal,
-    isReallyTabletSize,
-    shouldReallyShowModal,
-    currentDimensions: { width: currentWidth, height: currentHeight },
-    maxDimension: Math.max(currentWidth, currentHeight),
-  });
+  // console.log("🛡️ OrientationProvider Safeguard:", {
+  //   shouldShowModal,
+  //   isReallyTabletSize,
+  //   shouldReallyShowModal,
+  //   currentDimensions: { width: currentWidth, height: currentHeight },
+  //   maxDimension: Math.max(currentWidth, currentHeight),
+  // });
 
   return (
     <>

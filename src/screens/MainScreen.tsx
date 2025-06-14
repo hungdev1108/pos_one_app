@@ -1,10 +1,10 @@
 import { Ionicons } from "@expo/vector-icons";
+import { Image } from "expo-image";
 import { router } from "expo-router";
-import React from "react";
+import React, { memo } from "react";
 import {
   Alert,
   Dimensions,
-  Image,
   Linking,
   SafeAreaView,
   ScrollView,
@@ -15,17 +15,22 @@ import {
 } from "react-native";
 import { authService } from "../api/services/auth";
 
-// Logo Component
-const Logo = () => {
+// ✅ TỐI ƯU: Logo Component với memo và expo-image
+const Logo = memo(() => {
   return (
     <View>
       <Image
         source={require("../../assets/images/One-Green-no-backg.png")}
         style={styles.logo}
+        contentFit="contain"
+        transition={200}
+        cachePolicy="memory-disk"
       />
     </View>
   );
-};
+});
+
+Logo.displayName = 'Logo';
 
 interface MainScreenProps {
   username?: string;
@@ -75,6 +80,7 @@ const MainScreen: React.FC<MainScreenProps> = ({ username = "Daco" }) => {
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
+        removeClippedSubviews={true} // ✅ Performance optimization
       >
         {/* Header với Logo và Logout */}
         <View style={styles.header}>
@@ -106,6 +112,9 @@ const MainScreen: React.FC<MainScreenProps> = ({ username = "Daco" }) => {
                 <Image
                   source={require("../../assets/images/favicon_new.png")}
                   style={styles.productIconImage}
+                  contentFit="contain"
+                  transition={200}
+                  cachePolicy="memory-disk"
                 />
               </View>
               <Text style={styles.productTitle}>Bán hàng</Text>
@@ -120,6 +129,9 @@ const MainScreen: React.FC<MainScreenProps> = ({ username = "Daco" }) => {
                 <Image
                   source={require("../../assets/images/favicon_new.png")}
                   style={styles.productIconImage}
+                  contentFit="contain"
+                  transition={200}
+                  cachePolicy="memory-disk"
                 />
               </View>
               <Text style={styles.productSubTitle}>Quản lý</Text>
@@ -134,6 +146,9 @@ const MainScreen: React.FC<MainScreenProps> = ({ username = "Daco" }) => {
                 <Image
                   source={require("../../assets/images/favicon_new.png")}
                   style={styles.productIconImage}
+                  contentFit="contain"
+                  transition={200}
+                  cachePolicy="memory-disk"
                 />
               </View>
               <Text style={styles.productSubTitle}>KOM</Text>

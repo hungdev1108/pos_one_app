@@ -1,18 +1,15 @@
 import { authService } from "@/src/api";
-import { ThemedText } from "@/src/components/ui/ThemedText";
+import { Image } from "expo-image";
 import { router } from "expo-router";
-import React, { useEffect } from "react";
-import { ActivityIndicator, StyleSheet, View } from "react-native";
+import React, { useCallback, useEffect } from "react";
+import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
 
 export default function InitialScreen() {
-  useEffect(() => {
-    checkLoginStatus();
-  }, []);
-
-  const checkLoginStatus = async () => {
+  // Optimize với useCallback để tránh re-create function
+  const checkLoginStatus = useCallback(async () => {
     try {
-      // Add a small delay for better UX
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      // ✅ LOẠI BỎ delay không cần thiết để app load nhanh hơn
+      // await new Promise((resolve) => setTimeout(resolve, 1000));
 
       const isLoggedIn = await authService.isLoggedIn();
 
@@ -23,18 +20,29 @@ export default function InitialScreen() {
       }
     } catch (error) {
       console.error("Error checking login status:", error);
+      // Fallback về login nếu có lỗi
       router.replace("/login");
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    checkLoginStatus();
+  }, [checkLoginStatus]);
 
   return (
     <View style={styles.container}>
-      {/* <View style={styles.logoContainer}>
-        <ThemedText style={styles.posText}>POS</ThemedText>
-        <ThemedText style={styles.oneText}> ONE</ThemedText>
-      </View> */}
-      <ActivityIndicator size="large" color="#4CAF50" style={styles.loader} />
-      <ThemedText style={styles.loadingText}>Đang khởi động...</ThemedText>
+      <View style={styles.logoContainer}>
+        <Image
+          source={require("../assets/images/favicon_new.png")}
+          style={styles.logo}
+          contentFit="contain"
+          transition={200}
+          cachePolicy="memory-disk"
+        />
+      </View>
+      
+      <ActivityIndicator size="large" color="#198754" style={styles.loader} />
+      <Text style={styles.loadingText}>Đang khởi động...</Text>
     </View>
   );
 }
@@ -47,21 +55,14 @@ const styles = StyleSheet.create({
     backgroundColor: "#f8f9fa",
   },
   logoContainer: {
-    flexDirection: "row",
-    alignItems: "center",
     marginBottom: 40,
+    alignItems: "center",
+    justifyContent: "center",
   },
-  posText: {
-    fontSize: 48,
-    fontWeight: "bold",
-    color: "#4CAF50",
-    letterSpacing: 2,
-  },
-  oneText: {
-    fontSize: 48,
-    fontWeight: "bold",
-    color: "#2196F3",
-    letterSpacing: 2,
+  logo: {
+    width: 120,
+    height: 120,
+    marginBottom: 20,
   },
   loader: {
     marginBottom: 20,
@@ -69,5 +70,6 @@ const styles = StyleSheet.create({
   loadingText: {
     fontSize: 16,
     color: "#666",
+    fontWeight: "500",
   },
 });

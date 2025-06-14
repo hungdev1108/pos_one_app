@@ -467,6 +467,7 @@ const OrdersView: React.FC<OrdersViewProps> = ({
 
       <FlatList
         data={orders}
+        removeClippedSubviews={true}
         renderItem={renderOrderItem}
         keyExtractor={(item) => item.id}
         numColumns={numColumns}

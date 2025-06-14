@@ -500,6 +500,7 @@ const AreasTablesView: React.FC<AreasTablesViewProps> = ({
   return (
     <FlatList
       data={areas}
+      removeClippedSubviews={true}
       renderItem={renderArea}
       keyExtractor={(item) => item.id}
       contentContainerStyle={styles.listContainer}

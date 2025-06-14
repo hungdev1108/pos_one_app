@@ -1,11 +1,10 @@
 import { authService, LoginRequest } from "@/src/api";
 import { Ionicons } from "@expo/vector-icons";
+import { Image } from "expo-image";
 import { router } from "expo-router";
-import React, { useRef, useState } from "react";
-import { Controller, useForm } from "react-hook-form";
+import React, { useCallback, useRef, useState } from "react";
 import {
   Alert,
-  Image,
   Keyboard,
   KeyboardAvoidingView,
   Platform,
@@ -25,37 +24,51 @@ interface LoginForm {
   isPeristant: boolean;
 }
 
+interface FormErrors {
+  userName?: string;
+  password?: string;
+}
+
 export default function LoginScreen() {
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const passwordRef = useRef<TextInput>(null);
 
-  const {
-    control,
-    handleSubmit,
-    reset,
-    watch,
-    setValue,
-    formState: { errors },
-  } = useForm<LoginForm>({
-    defaultValues: {
-      userName: "",
-      password: "",
-      isPeristant: false,
-    },
+  const [formData, setFormData] = useState<LoginForm>({
+    userName: "",
+    password: "",
+    isPeristant: false,
   });
+  const [errors, setErrors] = useState<FormErrors>({});
 
-  const rememberMe = watch("isPeristant");
+  const validateForm = useCallback((): boolean => {
+    const newErrors: FormErrors = {};
 
-  const onSubmit = async (data: LoginForm) => {
+    if (!formData.userName.trim()) {
+      newErrors.userName = "Vui lòng nhập tài khoản";
+    }
+    if (!formData.password.trim()) {
+      newErrors.password = "Vui lòng nhập mật khẩu";
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  }, [formData.userName, formData.password]);
+
+  const onSubmit = useCallback(async () => {
     Keyboard.dismiss();
+    
+    if (!validateForm()) {
+      return;
+    }
+
     setIsLoading(true);
 
     try {
       const loginData: LoginRequest = {
-        userName: data.userName,
-        password: data.password,
-        isPeristant: data.isPeristant,
+        userName: formData.userName,
+        password: formData.password,
+        isPeristant: formData.isPeristant,
       };
 
       const response = await authService.login(loginData);
@@ -79,24 +92,39 @@ export default function LoginScreen() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [formData, validateForm]);
 
-  const onReset = () => {
-    reset({
+  const onReset = useCallback(() => {
+    setFormData({
       userName: "",
       password: "",
       isPeristant: false,
     });
+    setErrors({});
     Keyboard.dismiss();
-  };
+  }, []);
 
-  const dismissKeyboard = () => {
+  const dismissKeyboard = useCallback(() => {
     Keyboard.dismiss();
-  };
+  }, []);
 
-  const toggleRememberMe = () => {
-    setValue("isPeristant", !rememberMe);
-  };
+  const toggleShowPassword = useCallback(() => {
+    setShowPassword(prev => !prev);
+  }, []);
+
+  const updateUserName = useCallback((text: string) => {
+    setFormData(prev => ({ ...prev, userName: text }));
+    if (errors.userName) {
+      setErrors(prev => ({ ...prev, userName: undefined }));
+    }
+  }, [errors.userName]);
+
+  const updatePassword = useCallback((text: string) => {
+    setFormData(prev => ({ ...prev, password: text }));
+    if (errors.password) {
+      setErrors(prev => ({ ...prev, password: undefined }));
+    }
+  }, [errors.password]);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -110,19 +138,19 @@ export default function LoginScreen() {
             contentContainerStyle={styles.scrollContainer}
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
+            removeClippedSubviews={true}
           >
             <View style={styles.content}>
               {/* Header */}
               <View style={styles.header}>
-                {/* <View style={styles.titleContainer}>
-                  <Text style={styles.posText}>POS</Text>
-                  <Text style={styles.oneText}> ONE</Text>
-                </View> */}
                 {/* Logo */}
                 <View style={styles.logoContainer}>
                   <Image
                     source={require("../assets/images/One-Green-no-backg.png")}
                     style={styles.logo}
+                    contentFit="contain"
+                    transition={200}
+                    cachePolicy="memory-disk"
                   />
                 </View>
                 <Text style={styles.subtitle}>Phần mềm quản lý kinh doanh</Text>
@@ -133,35 +161,25 @@ export default function LoginScreen() {
                 {/* Username Field */}
                 <View style={styles.fieldContainer}>
                   <Text style={styles.label}>Tên đăng nhập</Text>
-                  <Controller
-                    control={control}
-                    rules={{
-                      required: "Vui lòng nhập tài khoản",
-                    }}
-                    render={({ field: { onChange, onBlur, value } }) => (
-                      <TextInput
-                        style={[
-                          styles.input,
-                          errors.userName && styles.inputError,
-                        ]}
-                        onBlur={onBlur}
-                        onChangeText={onChange}
-                        value={value}
-                        placeholder="ví dụ: kimhang"
-                        placeholderTextColor="#999"
-                        autoCapitalize="none"
-                        autoCorrect={false}
-                        returnKeyType="next"
-                        onSubmitEditing={() => passwordRef.current?.focus()}
-                        blurOnSubmit={false}
-                        editable={!isLoading}
-                      />
-                    )}
-                    name="userName"
+                  <TextInput
+                    style={[
+                      styles.input,
+                      errors.userName && styles.inputError,
+                    ]}
+                    onChangeText={updateUserName}
+                    value={formData.userName}
+                    placeholder="ví dụ: kimhang"
+                    placeholderTextColor="#999"
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    returnKeyType="next"
+                    onSubmitEditing={() => passwordRef.current?.focus()}
+                    blurOnSubmit={false}
+                    editable={!isLoading}
                   />
                   {errors.userName && (
                     <Text style={styles.errorText}>
-                      {errors.userName.message}
+                      {errors.userName}
                     </Text>
                   )}
                 </View>
@@ -170,37 +188,27 @@ export default function LoginScreen() {
                 <View style={styles.fieldContainer}>
                   <Text style={styles.label}>Mật khẩu</Text>
                   <View style={styles.passwordContainer}>
-                    <Controller
-                      control={control}
-                      rules={{
-                        required: "Vui lòng nhập mật khẩu",
-                      }}
-                      render={({ field: { onChange, onBlur, value } }) => (
-                        <TextInput
-                          ref={passwordRef}
-                          style={[
-                            styles.input,
-                            styles.passwordInput,
-                            errors.password && styles.inputError,
-                          ]}
-                          onBlur={onBlur}
-                          onChangeText={onChange}
-                          value={value}
-                          placeholder=""
-                          placeholderTextColor="#999"
-                          secureTextEntry={!showPassword}
-                          autoCapitalize="none"
-                          autoCorrect={false}
-                          returnKeyType="done"
-                          onSubmitEditing={handleSubmit(onSubmit)}
-                          editable={!isLoading}
-                        />
-                      )}
-                      name="password"
+                    <TextInput
+                      ref={passwordRef}
+                      style={[
+                        styles.input,
+                        styles.passwordInput,
+                        errors.password && styles.inputError,
+                      ]}
+                      onChangeText={updatePassword}
+                      value={formData.password}
+                      placeholder=""
+                      placeholderTextColor="#999"
+                      secureTextEntry={!showPassword}
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                      returnKeyType="done"
+                      onSubmitEditing={onSubmit}
+                      editable={!isLoading}
                     />
                     <TouchableOpacity
                       style={styles.eyeIcon}
-                      onPress={() => setShowPassword(!showPassword)}
+                      onPress={toggleShowPassword}
                       disabled={isLoading}
                     >
                       <Ionicons
@@ -212,29 +220,10 @@ export default function LoginScreen() {
                   </View>
                   {errors.password && (
                     <Text style={styles.errorText}>
-                      {errors.password.message}
+                      {errors.password}
                     </Text>
                   )}
                 </View>
-
-                {/* Remember Me Checkbox */}
-                {/* <TouchableOpacity
-                  style={styles.checkboxContainer}
-                  onPress={toggleRememberMe}
-                  disabled={isLoading}
-                >
-                  <View
-                    style={[
-                      styles.checkbox,
-                      rememberMe && styles.checkboxChecked,
-                    ]}
-                  >
-                    {rememberMe && (
-                      <Ionicons name="checkmark" size={16} color="#fff" />
-                    )}
-                  </View>
-                  <Text style={styles.checkboxLabel}>Ghi nhớ đăng nhập</Text>
-                </TouchableOpacity> */}
 
                 {/* Buttons */}
                 <View style={styles.buttonContainer}>
@@ -254,7 +243,7 @@ export default function LoginScreen() {
                       styles.loginButton,
                       isLoading && styles.loginButtonDisabled,
                     ]}
-                    onPress={handleSubmit(onSubmit)}
+                    onPress={onSubmit}
                     disabled={isLoading}
                   >
                     <Text style={styles.loginButtonText}>
@@ -317,23 +306,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 60,
   },
-  titleContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 12,
-  },
-  posText: {
-    fontSize: 48,
-    fontWeight: "bold",
-    color: "#4CAF50",
-    letterSpacing: 2,
-  },
-  oneText: {
-    fontSize: 48,
-    fontWeight: "bold",
-    color: "#2196F3",
-    letterSpacing: 2,
-  },
   subtitle: {
     fontSize: 18,
     color: "#666",
@@ -381,31 +353,6 @@ const styles = StyleSheet.create({
     color: "#f44336",
     fontSize: 12,
     marginTop: 4,
-  },
-  checkboxContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 20,
-    paddingHorizontal: 4,
-  },
-  checkbox: {
-    width: 20,
-    height: 20,
-    borderWidth: 2,
-    borderColor: "#ddd",
-    borderRadius: 3,
-    marginRight: 12,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#fff",
-  },
-  checkboxChecked: {
-    backgroundColor: "#4CAF50",
-    borderColor: "#4CAF50",
-  },
-  checkboxLabel: {
-    fontSize: 16,
-    color: "#333",
   },
   buttonContainer: {
     flexDirection: "row",

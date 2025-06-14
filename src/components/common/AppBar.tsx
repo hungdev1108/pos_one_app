@@ -1,13 +1,13 @@
 import { Ionicons } from "@expo/vector-icons";
+import { Image } from "expo-image";
 import { StatusBar } from "expo-status-bar";
 import React from "react";
 import {
-  Dimensions,
-  Image,
-  Platform,
-  StyleSheet,
-  TouchableOpacity,
-  View,
+    Dimensions,
+    Platform,
+    StyleSheet,
+    TouchableOpacity,
+    View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -64,6 +64,9 @@ export default function AppBar({ onMenuPress, onReloadPress }: AppBarProps) {
           <Image
             style={styles.logo}
             source={require("../../../assets/images/One-Green-no-backg.png")}
+            contentFit="contain"
+            transition={200}
+            cachePolicy="memory-disk"
           />
         </View>
 
