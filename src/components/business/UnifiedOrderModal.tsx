@@ -7,7 +7,7 @@ import {
 } from "@/src/api";
 import { OrderType } from "@/src/api/types";
 import { OrderMode } from "@/src/services/buttonVisibilityService";
-import { Ionicons } from "@expo/vector-icons";
+import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import React, { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -17,8 +17,10 @@ import {
   FlatList,
   Modal,
   SafeAreaView,
+  ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
@@ -33,9 +35,11 @@ import {
   calculateOrderSummary,
   formatPrice as formatPriceUtil,
 } from "../../utils/orderCalculations";
-import CustomerInfoSection from "./CustomerInfoModal";
+import CustomerInfoModal from "./CustomerInfoModal";
+import CustomerSection from "./CustomerSection";
 import KitchenPrintModal from "./KitchenPrintModal";
 import OrderActionButtons from "./OrderActionButtons";
+import OrderTypeButtons from "./OrderTypeButtons";
 import PaymentModal from "./PaymentModal";
 import ProductQuantityControls from "./ProductQuantityControls";
 
@@ -109,6 +113,7 @@ const SwipeableOrderItem: React.FC<{
   isPaid: boolean;
   order?: any;
   isExistingOrder?: boolean;
+  onNotePress?: (item: OrderItem) => void;
 }> = ({
   item,
   index,
@@ -117,6 +122,7 @@ const SwipeableOrderItem: React.FC<{
   isPaid,
   order,
   isExistingOrder = false,
+  onNotePress,
 }) => {
   const translateX = useRef(new Animated.Value(0)).current;
 
@@ -223,15 +229,27 @@ const SwipeableOrderItem: React.FC<{
             failOffsetY={[-30, 30]}
             shouldCancelWhenOutside={true}
           >
+            <TouchableOpacity style={styles.itemInfo} onPress={() => {
+                  onNotePress?.(item);
+                }}>
             <View style={styles.itemInfo}>
               <TouchableOpacity onPress={resetSwipe} activeOpacity={0.7}>
-                <Text style={styles.itemTitle} numberOfLines={2}>
+                <Text style={styles.itemTitle} numberOfLines={1}>
                   {item.title.trim()}
                 </Text>
                 <Text style={styles.itemPrice}>{formatPrice(item.price)}</Text>
               </TouchableOpacity>
+
+              {/* Note for item selected */}
+              <TouchableOpacity 
+                style={styles.noteIconContainer}
+              >
+                <MaterialCommunityIcons name="message-question-outline" size={18} color="#999" />
+              </TouchableOpacity>
             </View>
+            </TouchableOpacity>
           </PanGestureHandler>
+
 
           {/* Controls area - no gesture */}
           <ProductQuantityControls
@@ -246,6 +264,18 @@ const SwipeableOrderItem: React.FC<{
           <View style={styles.itemTotalContainer}>
             <Text style={styles.itemTotal}>{formatPrice(itemTotal)}</Text>
           </View>
+
+          {/* Delete item */}
+          {!isPaid && onRemoveItem && (
+            <TouchableOpacity 
+              style={styles.deleteItemContainer} 
+              onPress={() => {
+                onRemoveItem(item.id)
+              }}
+            >
+              <Ionicons name="trash-outline" size={16} color="#dc3545" />
+            </TouchableOpacity>
+          )}
         </View>
       </Animated.View>
     </View>
@@ -295,6 +325,12 @@ export default function UnifiedOrderModal({
     customerAddress: "",
   });
   const [shouldAutoOpenPayment, setShouldAutoOpenPayment] = useState(false);
+  const [selectedOrderType, setSelectedOrderType] = useState<OrderType | null>(null);
+  
+  // Note modal state
+  const [noteModalVisible, setNoteModalVisible] = useState(false);
+  const [selectedItemForNote, setSelectedItemForNote] = useState<OrderItem | null>(null);
+  const [noteText, setNoteText] = useState("");
 
   useEffect(() => {
     if (visible && selectedOrder) {
@@ -576,6 +612,7 @@ export default function UnifiedOrderModal({
         isPaid={isOrderPaid}
         order={orderDetail || selectedOrder}
         isExistingOrder={!!selectedOrder}
+        onNotePress={handleNotePress}
       />
     );
   };
@@ -631,10 +668,10 @@ export default function UnifiedOrderModal({
         )} */}
 
         {/* Info order type */}
-        <View style={styles.orderInfoRow}>
+        {/* <View style={styles.orderInfoRow}>
           <Text style={styles.orderInfoLabel}>Loại đơn:</Text>
           <Text style={styles.orderInfoValue}>{getOrderTypeText()}</Text>
-        </View>
+        </View> */}
 
         <View style={styles.orderInfoRow}>
           <Text style={styles.orderInfoLabel}>Mã đơn:</Text>
@@ -880,6 +917,11 @@ export default function UnifiedOrderModal({
         orderData.tableId = selectedTable.id;
       }
 
+      // Thêm orderType nếu đã chọn
+      if (selectedOrderType?.id) {
+        orderData.orderType = selectedOrderType;
+      }
+
       console.log("🍽️ Creating order with data:", orderData);
 
       const response = await ordersService.createOrder(orderData);
@@ -903,6 +945,7 @@ export default function UnifiedOrderModal({
                   customerPhone: "",
                   customerAddress: "",
                 });
+                setSelectedOrderType(null); // Reset order type
 
                 onClearOrder?.(); // Xóa giỏ hàng tạm
                 onClose();
@@ -960,7 +1003,7 @@ export default function UnifiedOrderModal({
 
       console.log("💾 Lưu thông tin tạm vào biến tổng:", tempOrderData);
 
-      // BƯỚC 2: Tạo đơn hàng async (không chờ)
+      // BƯỚC 2: Tạo đơn hàng và in chế biến async
       const createOrderAsync = async () => {
         try {
           const products = orderItems.map((item) => ({
@@ -1011,6 +1054,11 @@ export default function UnifiedOrderModal({
             orderData.tableId = selectedTable.id;
           }
 
+          // Thêm orderType nếu đã chọn
+          if (selectedOrderType?.id) {
+            orderData.orderType = selectedOrderType;
+          }
+
           console.log("🍽️ Creating order asynchronously:", orderData);
           const response = await ordersService.createOrder(orderData);
 
@@ -1049,6 +1097,8 @@ export default function UnifiedOrderModal({
         customerPhone: "",
         customerAddress: "",
       });
+      setSelectedOrderType(null); // Reset order type
+
       onClearOrder?.();
 
       // BƯỚC 4: Chuyển thẳng sang màn hình thanh toán với thông tin tạm
@@ -1176,6 +1226,11 @@ export default function UnifiedOrderModal({
         orderData.tableId = selectedTable.id;
       }
 
+      // Thêm orderType nếu đã chọn
+      if (selectedOrderType?.id) {
+        orderData.orderType = selectedOrderType;
+      }
+
       console.log("🍽️ Creating order for kitchen print:", orderData);
       const response = await ordersService.createOrder(orderData);
 
@@ -1206,6 +1261,8 @@ export default function UnifiedOrderModal({
           customerPhone: "",
           customerAddress: "",
         });
+        setSelectedOrderType(null); // Reset order type
+
         onClearOrder?.();
 
         // Hiển thị KitchenPrintModal
@@ -1349,6 +1406,17 @@ export default function UnifiedOrderModal({
     }
   };
 
+  const handleOrderTypeSelect = (orderType: OrderType) => {
+    setSelectedOrderType(orderType);
+    console.log("Selected order type:", orderType);
+  };
+
+  const handleNotePress = (item: OrderItem) => {
+    setSelectedItemForNote(item);
+    setNoteText(""); // Reset note text
+    setNoteModalVisible(true);
+  };
+
   const renderActionButtons = () => {
     // Nếu không có món ăn nào thì không hiển thị các button action
     if (loading || displayItems.length === 0) return null;
@@ -1399,42 +1467,62 @@ export default function UnifiedOrderModal({
 
     return (
       <View style={styles.rightSideContainer}>
+        <ScrollView style={styles.rightSideContainer}>
+
+        {/* Section orderTypes and CustomerInfo */}
+        <View style={styles.orderTypesAndCustomerInfoContainer}>
+          <View style={styles.orderTypesContainer}>
+            <OrderTypeButtons
+              orderTypes={orderTypes}
+              selectedOrderType={selectedOrderType}
+              onSelect={handleOrderTypeSelect}
+            />
+          </View>
+          <View style={styles.customerInfoContainer}>
+            {/* Customer Info Section */}
+        {!selectedOrder && (
+          <CustomerSection
+            initialData={customerInfo}
+            onSave={handleCustomerInfoSave}
+            shouldReset={shouldResetCustomerInfo}
+          />
+        )}
+          </View>
+        </View>
+
+        
         {/* Order Info Section */}
         {selectedOrder && renderOrderDetails()}
 
-        <View style={styles.customerInfoSection}>
-        {/* Customer Info Section */}
-        <View>
-          <Text>Customer Info Section</Text>
-        </View>
-        <CustomerInfoSection
-          initialData={customerInfo}
-          onSave={handleCustomerInfoSave}
-          shouldReset={shouldResetCustomerInfo}
-        /></View>
-
         {/* Back to Menu and Customer Info Section for new orders */}
-        {selectedTable && !selectedOrder && (
-          <View style={styles.tabletBackToMenuAndCustomerInfoContainer}>
-            <TouchableOpacity
-              style={styles.tabletBackToMenuContainer}
-              onPress={onClose}
-            >
-              <Ionicons name="arrow-back" size={26} color="#198754" />
-              <Text style={styles.backToMenuText}>Quay lại</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
+        {!isTablet && (
+          <View>
+          {selectedTable && !selectedOrder && (
+            <View style={styles.tabletBackToMenuAndCustomerInfoContainer}>
+              <TouchableOpacity
+                style={styles.tabletBackToMenuContainer}
+                onPress={onClose}
+              >
+                <Ionicons name="arrow-back" size={26} color="#198754" />
+                <Text style={styles.backToMenuText}>Quay lại</Text>
+              </TouchableOpacity>
+  
+              <TouchableOpacity
               style={styles.tabletBackToCustomerInfoContainer}
               onPress={() => setCustomerInfoModalVisible(true)}
             >
               <Ionicons name="person-add" size={26} color="#198754" />
               <Text style={styles.customerInfoText}>Khách hàng</Text>
             </TouchableOpacity>
+            </View>
+          )}
           </View>
         )}
+        
 
+        </ScrollView>
         {/* Summary Section */}
+        <View style={styles.footerOrderContainer}>
         {displayItems.length > 0 && (
           <View style={styles.tabletSummarySection}>
             <View style={styles.summaryRow}>
@@ -1460,8 +1548,23 @@ export default function UnifiedOrderModal({
           </View>
         )}
 
-        {/* Action Buttons */}
-        <View style={styles.tabletFooter}>{renderActionButtons()}</View>
+                  {/* Action Buttons */}
+          <View style={styles.tabletFooter}>
+            {isTablet && (
+              <TouchableOpacity
+                style={styles.tabletBackButton}
+                onPress={onClose}
+              >
+                <Ionicons name="arrow-back" size={20} color="#666" />
+                <Text style={styles.tabletBackButtonText}>Quay lại</Text>
+              </TouchableOpacity>
+            )}
+            <View style={styles.tabletActionButtonsContainer}>
+              {renderActionButtons()}
+            </View>
+          </View>
+        </View>
+      
       </View>
     );
   };
@@ -1658,14 +1761,14 @@ export default function UnifiedOrderModal({
             orderId={selectedOrder?.id}
           />
 
-          {/* Customer Info Modal
-          {customerInfoModalVisible && (
-            <CustomerInfoSection
-              initialData={customerInfo}
-              onSave={handleCustomerInfoSave}
-              shouldReset={shouldResetCustomerInfo}
-            />
-          )} */}
+          {/* Customer Info Modal */}
+          <CustomerInfoModal
+            visible={customerInfoModalVisible}
+            initialData={customerInfo}
+            onClose={() => setCustomerInfoModalVisible(false)}
+            onSave={handleCustomerInfoSave}
+            shouldReset={shouldResetCustomerInfo}
+          />
 
           {/* Kitchen Print Modal */}
           {kitchenPrintData && (
@@ -1679,6 +1782,61 @@ export default function UnifiedOrderModal({
               printData={kitchenPrintData}
             />
           )}
+
+          {/* Note Popup */}
+          <Modal
+            visible={noteModalVisible}
+            animationType="fade"
+            transparent={true}
+            onRequestClose={() => setNoteModalVisible(false)}
+          >
+            <View style={styles.notePopupOverlay}>
+              <View style={styles.notePopupContainer}>
+                <View style={styles.notePopupHeader}>
+                  <Text style={styles.notePopupTitle}>
+                    Ghi chú: {selectedItemForNote?.title}
+                  </Text>
+                  <TouchableOpacity
+                    style={styles.notePopupCloseButton}
+                    onPress={() => setNoteModalVisible(false)}
+                  >
+                    <Ionicons name="close" size={20} color="#666" />
+                  </TouchableOpacity>
+                </View>
+                
+                <TextInput
+                  style={styles.notePopupTextInput}
+                  value={noteText}
+                  onChangeText={setNoteText}
+                  placeholder="Nhập ghi chú..."
+                  multiline
+                  numberOfLines={3}
+                  textAlignVertical="top"
+                  autoFocus
+                />
+                
+                <View style={styles.notePopupFooter}>
+                  <TouchableOpacity
+                    style={styles.notePopupCancelButton}
+                    onPress={() => setNoteModalVisible(false)}
+                  >
+                    <Text style={styles.notePopupCancelText}>Hủy</Text>
+                  </TouchableOpacity>
+                  
+                  <TouchableOpacity
+                    style={styles.notePopupSaveButton}
+                    onPress={() => {
+                      // TODO: Save note functionality
+                      console.log('Save note:', noteText, 'for item:', selectedItemForNote?.id);
+                      setNoteModalVisible(false);
+                    }}
+                  >
+                    <Text style={styles.notePopupSaveText}>Lưu</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </View>
+          </Modal>
         </View>
       </Modal>
     </SafeAreaView>
@@ -1706,10 +1864,12 @@ const styles = StyleSheet.create({
     marginTop: isTablet ? 12 : 0,
   },
   rightSideContainer: {
+    position: "relative",
     flex: 1,
     backgroundColor: "#f8f9fa",
     borderLeftWidth: 1,
     borderLeftColor: "#e9ecef",
+    paddingBottom: 200, // Space for footer
   },
   tabletOrderInfoHeader: {
     backgroundColor: "#fff",
@@ -1763,7 +1923,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#fff",
     marginHorizontal: 16,
     marginVertical: 12,
-    paddingHorizontal: 28,
+    paddingHorizontal: 16,
     paddingVertical: 16,
     // borderRadius: 8,
     // shadowColor: "#000",
@@ -1773,9 +1933,30 @@ const styles = StyleSheet.create({
     // elevation: 2,
   },
   tabletFooter: {
+    flexDirection: "row",
+    alignItems: "center",
     paddingHorizontal: 16,
-    paddingVertical: 16,
-    marginTop: "auto", // Push to bottom
+    paddingBottom: 8,
+    gap: 12,
+  },
+  tabletBackButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#fff",
+    borderWidth: 1,
+    borderColor: "#ddd",
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    gap: 6,
+  },
+  tabletBackButtonText: {
+    fontSize: 14,
+    fontWeight: "500",
+    color: "#666",
+  },
+  tabletActionButtonsContainer: {
+    flex: 1,
   },
   header: {
     flexDirection: "row",
@@ -1916,6 +2097,9 @@ const styles = StyleSheet.create({
   itemInfo: {
     flex: 1,
     paddingRight: 12,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
   },
   itemTitle: {
     fontSize: 14,
@@ -1950,8 +2134,8 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   itemTotalContainer: {
-    marginLeft: 12,
-    minWidth: 80,
+    // marginLeft: 12,
+    minWidth: 70,
     alignItems: "flex-end",
   },
   itemTotal: {
@@ -2120,11 +2304,115 @@ const styles = StyleSheet.create({
     color: "#198754",
     marginTop: 1,
   },
-  customerInfoSection: {
+  orderTypesAndCustomerInfoContainer: {
+    flexDirection: "column",
+    marginHorizontal: 16,
+    // marginVertical: 8,
+    marginTop: 8,
+    gap: 12,
+    },
+    orderTypesContainer: {
+      backgroundColor: "#fff",
+      // borderRadius: 8,
+      padding: 12,
+    
+    },
+    customerInfoContainer: {
+      // Existing styles remain the same
+    },
+      footerOrderContainer: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: "#f8f9fa",
+    // paddingTop: 8,
+  },
+  noteIconContainer: {
+    // padding: 8,
+    // marginHorizontal: 4,
+    borderRadius: 6,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  notePopupOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 20,
+  },
+  notePopupContainer: {
+    backgroundColor: "#fff",
+    borderRadius: 12,
+    padding: 20,
+    width: "100%",
+    maxWidth: 400,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  notePopupHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginHorizontal: 20,
-    marginVertical: 5,
+    marginBottom: 15,
+  },
+  notePopupTitle: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#333",
+    flex: 1,
+    marginRight: 10,
+  },
+  notePopupCloseButton: {
+    padding: 4,
+  },
+  notePopupTextInput: {
+    borderWidth: 1,
+    borderColor: "#ddd",
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 14,
+    color: "#333",
+    height: 80,
+    marginBottom: 15,
+  },
+  notePopupFooter: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    gap: 10,
+  },
+  notePopupCancelButton: {
+    borderWidth: 1,
+    borderColor: "#ddd",
+    borderRadius: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+  },
+  notePopupCancelText: {
+    fontSize: 14,
+    fontWeight: "500",
+    color: "#666",
+  },
+  notePopupSaveButton: {
+    backgroundColor: "#198754",
+    borderRadius: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+  },
+  notePopupSaveText: {
+    fontSize: 14,
+    fontWeight: "500",
+    color: "#fff",
+  },
+  deleteItemContainer: {
+    padding: 8,
+    marginLeft: 8,
+    borderRadius: 6,
+    alignItems: "center",
+    justifyContent: "center",
   },
 });

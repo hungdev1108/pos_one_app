@@ -35,6 +35,7 @@ const ITEM_WIDTH = (width - 48) / numColumns;
 
 // Breakpint for tablet android and ios
 const isTablet = width >= 720;
+const isSmallTablet = width >= 560;
 const numColumns_tablet = 6;
 const ITEM_WIDTH_tablet = (width - 80) / numColumns_tablet;
 
@@ -270,7 +271,7 @@ const AllCategoriesProductList: React.FC<AllCategoriesProductListProps> = ({
           </View>
           <View style={styles.productInfo}>
             <Text style={styles.productTitle} numberOfLines={2}>
-              {product.title} 
+              {product.title}
             </Text>
             <Text style={styles.productPrice}>{formattedPrice}</Text>
           </View>
@@ -513,7 +514,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 2,
     position: "relative",
-    height: isTablet ? ITEM_WIDTH_tablet * 1.2 : ITEM_WIDTH * 1.2,
+    height: isTablet ? ITEM_WIDTH_tablet * 1.3 : ITEM_WIDTH * 1.2,
   },
   imageContainer: {
     padding: 5,
@@ -537,14 +538,13 @@ const styles = StyleSheet.create({
   },
   productTitle: {
     fontSize: 16,
-    // litmit number of lines to 2
-    // numberOfLines: 2,
     fontWeight: "500",
     color: "#333",
     marginBottom: 14,
     lineHeight: 18,
     textAlign: "center",
-    height: 34,
+    height: isTablet ? 40 : isSmallTablet ? 24 : 18,
+    // backgroundColor: "red",
   },
   productPrice: {
     fontSize: 16,

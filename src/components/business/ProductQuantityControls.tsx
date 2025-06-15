@@ -121,7 +121,7 @@ export const ProductQuantityControls: React.FC<
         disabled={!productVisibility.updateQuantity}
       >
         <Ionicons
-          name={item.quantity === 1 ? "trash-outline" : "remove"}
+          name={item.quantity === 1 ? "remove" : "remove"}
           size={16}
           color={productVisibility.updateQuantity ? "#dc3545" : "#ccc"}
         />

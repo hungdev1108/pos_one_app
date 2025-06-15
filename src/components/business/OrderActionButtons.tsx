@@ -192,6 +192,7 @@ export const OrderActionButtons: React.FC<OrderActionButtonsProps> = ({
 
   return (
     <View style={styles.container}>
+      
       {mode === "create" && buttons.length <= 3 ? (
         <View style={styles.buttonRow}>{buttons}</View>
       ) : (
