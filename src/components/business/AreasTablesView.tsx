@@ -1,6 +1,6 @@
 import { Area, Table, TableStatus } from "@/src/api/types";
 import { FontAwesome6, Ionicons } from "@expo/vector-icons";
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Dimensions,
   FlatList,
@@ -16,6 +16,7 @@ import {
 interface AreasTablesViewProps {
   areas: Area[];
   loading: boolean;
+  error?: string | null;
   onRefresh?: () => void;
   onTablePress?: (table: Table, areaName?: string) => void;
   onAreaPress?: (area: Area) => void;
@@ -24,14 +25,24 @@ interface AreasTablesViewProps {
 
 const { width } = Dimensions.get("window");
 
-// Breakpint for tablet android and ios
+// Breakpoint for tablet android and ios
 const isTablet = width >= 720;
 const numColumns_tablet = 6;
 const ITEM_WIDTH_tablet = (width - 48) / numColumns_tablet;
 
+// Cache for expensive calculations
+interface AreasCache {
+  occupiedTables: { table: Table; areaName: string }[];
+  totalAmount: number;
+  lastUpdate: number;
+}
+
+const CACHE_DURATION = 10000; // 10 seconds cache
+
 const AreasTablesView: React.FC<AreasTablesViewProps> = ({
   areas,
   loading,
+  error,
   onRefresh,
   onTablePress,
   onAreaPress,
@@ -41,6 +52,7 @@ const AreasTablesView: React.FC<AreasTablesViewProps> = ({
     string | null
   >(null);
   const [showAllOccupiedTables, setShowAllOccupiedTables] = useState(false);
+  const [areasCache, setAreasCache] = useState<AreasCache | null>(null);
 
   // Initialize tablet view with first area selected
   useEffect(() => {
@@ -54,7 +66,8 @@ const AreasTablesView: React.FC<AreasTablesViewProps> = ({
     }
   }, [areas, isTablet, tabletSelectedAreaId, showAllOccupiedTables]);
 
-  const getTableStatusColor = (status: TableStatus) => {
+  // Memoized utility functions
+  const getTableStatusColor = useCallback((status: TableStatus) => {
     switch (status) {
       case TableStatus.Available:
         return "#28a745"; // Xanh lá - trống
@@ -63,9 +76,9 @@ const AreasTablesView: React.FC<AreasTablesViewProps> = ({
       default:
         return "#6c757d"; // Xám - không xác định
     }
-  };
+  }, []);
 
-  const getTableStatusText = (status: TableStatus) => {
+  const getTableStatusText = useCallback((status: TableStatus) => {
     switch (status) {
       case TableStatus.Available:
         return "Trống";
@@ -74,9 +87,9 @@ const AreasTablesView: React.FC<AreasTablesViewProps> = ({
       default:
         return "N/A";
     }
-  };
+  }, []);
 
-  const getTableStatusIcon = (status: TableStatus) => {
+  const getTableStatusIcon = useCallback((status: TableStatus) => {
     switch (status) {
       case TableStatus.Available:
         return "checkmark-circle";
@@ -85,61 +98,81 @@ const AreasTablesView: React.FC<AreasTablesViewProps> = ({
       default:
         return "help-circle";
     }
-  };
+  }, []);
 
-  const formatPrice = (price: number): string => {
+  const formatPrice = useCallback((price: number): string => {
     return new Intl.NumberFormat("vi-VN").format(price);
-  };
+  }, []);
 
-  // Get all occupied tables across all areas
-  const getAllOccupiedTables = () => {
-    const occupiedTables: { table: Table; areaName: string }[] = [];
+  // Memoized expensive calculations with caching
+  const { occupiedTables, totalAmount } = useMemo(() => {
+    const now = Date.now();
+    
+    // Return cached data if still valid
+    if (areasCache && (now - areasCache.lastUpdate) < CACHE_DURATION) {
+      console.log("📦 Using cached areas data");
+      return {
+        occupiedTables: areasCache.occupiedTables,
+        totalAmount: areasCache.totalAmount
+      };
+    }
+
+    console.log("🔄 Calculating areas data");
+    
+    // Calculate occupied tables
+    const newOccupiedTables: { table: Table; areaName: string }[] = [];
+    let newTotalAmount = 0;
 
     areas.forEach((area) => {
       area.tables.forEach((table) => {
         if (table.status === TableStatus.Occupied) {
-          occupiedTables.push({ table, areaName: area.name });
+          newOccupiedTables.push({ table, areaName: area.name });
+          
+          if (table.order) {
+            table.order.products.forEach((product) => {
+              newTotalAmount += product.totalCostInclideVAT || 0;
+            });
+          }
         }
       });
     });
 
-    return occupiedTables;
-  };
+    // Update cache
+    const newCache: AreasCache = {
+      occupiedTables: newOccupiedTables,
+      totalAmount: newTotalAmount,
+      lastUpdate: now
+    };
+    setAreasCache(newCache);
 
-  // Calculate total amount of all occupied tables
-  const calculateTotalAmount = () => {
-    let total = 0;
+    return {
+      occupiedTables: newOccupiedTables,
+      totalAmount: newTotalAmount
+    };
+  }, [areas, areasCache]);
 
-    areas.forEach((area) => {
-      area.tables.forEach((table) => {
-        if (table.status === TableStatus.Occupied && table.order) {
-          table.order.products.forEach((product) => {
-            total += product.totalCostInclideVAT || 0;
-          });
-        }
-      });
-    });
+  // Memoized table calculations
+  const getTableCalculations = useCallback((table: Table) => {
+    if (!table.order) return { totalQuantity: 0, totalAmount: 0 };
 
-    return total;
-  };
+    const totalQuantity = table.order.products.reduce((sum, product) => {
+      return sum + (product.quantity || 0);
+    }, 0);
 
-  const renderTable = (table: Table, areaName: string) => {
+    const totalAmount = table.order.products.reduce((sum, product) => {
+      return sum + (product.totalCostInclideVAT || 0);
+    }, 0);
+
+    return { totalQuantity, totalAmount };
+  }, []);
+
+  // Memoized render functions
+  const renderTable = useCallback((table: Table, areaName: string) => {
     const statusColor = getTableStatusColor(table.status);
     const statusText = getTableStatusText(table.status);
     const statusIcon = getTableStatusIcon(table.status);
     const isSelected = selectedTable?.id === table.id;
-
-    // Tính tổng số lượng món
-    const totalQuantity =
-      table.order?.products.reduce((sum, product) => {
-        return sum + (product.quantity || 0);
-      }, 0) || 0;
-
-    // Tính tổng tiền
-    const totalAmount =
-      table.order?.products.reduce((sum, product) => {
-        return sum + (product.totalCostInclideVAT || 0);
-      }, 0) || 0;
+    const { totalQuantity, totalAmount } = getTableCalculations(table);
 
     // Layout cho bàn trống
     if (table.status === TableStatus.Available || !table.order) {
@@ -147,7 +180,6 @@ const AreasTablesView: React.FC<AreasTablesViewProps> = ({
         <TouchableOpacity
           style={[
             styles.tableCardEmpty,
-            // { borderLeftColor: statusColor },
             isSelected && styles.selectedTableCard,
           ]}
           onPress={() => onTablePress?.(table, areaName)}
@@ -162,26 +194,16 @@ const AreasTablesView: React.FC<AreasTablesViewProps> = ({
             <Text style={styles.tableNameLarge} numberOfLines={1}>
               {table.name}
             </Text>
-            {/* <View
-              style={[
-                styles.statusBadgeLarge,
-                { backgroundColor: statusColor },
-              ]}
-            >
-              <Ionicons name={statusIcon} size={14} color="#fff" />
-              <Text style={styles.statusTextLarge}>{statusText}</Text>
-            </View> */}
           </View>
         </TouchableOpacity>
       );
     }
 
-    // Layout cho bàn có khách (giữ nguyên như hiện tại)
+    // Layout cho bàn có khách
     return (
       <TouchableOpacity
         style={[
           styles.tableCard,
-          // { borderLeftColor: statusColor },
           isSelected && styles.selectedTableCard,
         ]}
         onPress={() => onTablePress?.(table, areaName)}
@@ -201,12 +223,6 @@ const AreasTablesView: React.FC<AreasTablesViewProps> = ({
               <Text style={styles.tableName_areaName}>{areaName}</Text>
             </View>
           </View>
-          {/* <View style={[styles.statusBadge, { backgroundColor: statusColor }]}>
-            <Ionicons name={statusIcon} size={10} color="#fff" />
-            <Text style={styles.statusText} numberOfLines={1}>
-              {statusText}
-            </Text>
-          </View> */}
         </View>
 
         {table.order && (
@@ -246,12 +262,6 @@ const AreasTablesView: React.FC<AreasTablesViewProps> = ({
               </View>
             </View>
 
-            {/* {table.order.customer && (
-              <Text style={styles.customerName} numberOfLines={1}>
-                👤 {table.order.customer.name}
-              </Text>
-            )} */}
-
             <View style={styles.bottomInfo}>
               <View style={styles.productCountContainer}>
                 <Text style={styles.productCountNumber}>{totalQuantity}</Text>
@@ -267,16 +277,16 @@ const AreasTablesView: React.FC<AreasTablesViewProps> = ({
         )}
       </TouchableOpacity>
     );
-  };
+  }, [selectedTable, getTableStatusColor, getTableStatusText, getTableStatusIcon, getTableCalculations, formatPrice, onTablePress]);
 
-  // Tablet: Render area sidebar item
-  const renderTabletAreaItem = (area: Area) => {
+  // Memoized tablet area item
+  const renderTabletAreaItem = useCallback((area: Area) => {
     const isSelected =
       tabletSelectedAreaId === area.id && !showAllOccupiedTables;
     const availableTables = area.tables.filter(
       (t) => t.status === TableStatus.Available
     ).length;
-    const occupiedTables = area.tables.filter(
+    const occupiedTablesCount = area.tables.filter(
       (t) => t.status === TableStatus.Occupied
     ).length;
 
@@ -304,20 +314,18 @@ const AreasTablesView: React.FC<AreasTablesViewProps> = ({
         </Text>
         <View style={styles.tabletAreaStats}>
           <Text style={styles.tabletAreaStatsText}>
-            {availableTables} trống • {occupiedTables} có khách
+            {availableTables} trống • {occupiedTablesCount} có khách
           </Text>
         </View>
         {isSelected && <View style={styles.tabletAreaIndicator} />}
       </TouchableOpacity>
     );
-  };
+  }, [tabletSelectedAreaId, showAllOccupiedTables, onAreaPress]);
 
-  // Tablet: Render tables for selected area or all occupied tables
-  const renderTabletSelectedAreaTables = () => {
+  // Memoized tablet selected area tables
+  const renderTabletSelectedAreaTables = useCallback(() => {
     // Show all occupied tables
     if (showAllOccupiedTables) {
-      const occupiedTables = getAllOccupiedTables();
-
       return (
         <View style={styles.tabletTablesContainer}>
           <Text style={styles.tabletSelectedAreaTitle}>
@@ -376,13 +384,14 @@ const AreasTablesView: React.FC<AreasTablesViewProps> = ({
         )}
       </View>
     );
-  };
+  }, [showAllOccupiedTables, occupiedTables, tabletSelectedAreaId, areas, renderTable]);
 
-  const renderArea = ({ item: area }: { item: Area }) => {
+  // Memoized area render for mobile
+  const renderArea = useCallback(({ item: area }: { item: Area }) => {
     const availableTables = area.tables.filter(
       (t) => t.status === TableStatus.Available
     ).length;
-    const occupiedTables = area.tables.filter(
+    const occupiedTablesCount = area.tables.filter(
       (t) => t.status === TableStatus.Occupied
     ).length;
 
@@ -397,13 +406,13 @@ const AreasTablesView: React.FC<AreasTablesViewProps> = ({
             <Text style={styles.areaName}>{area.name}</Text>
           </View>
           <View style={styles.areaStats}>
-            {occupiedTables > 0 ? (
+            {occupiedTablesCount > 0 ? (
               <Text style={styles.statsText_available}>
-                {availableTables} bàn trống • {occupiedTables} bàn có khách
+                {availableTables} bàn trống • {occupiedTablesCount} bàn có khách
               </Text>
             ) : (
               <Text style={styles.statsText_occupied}>
-                {availableTables} bàn trống • {occupiedTables} bàn có khách
+                {availableTables} bàn trống • {occupiedTablesCount} bàn có khách
               </Text>
             )}
             <Ionicons name="chevron-forward" size={16} color="#666" />
@@ -415,32 +424,54 @@ const AreasTablesView: React.FC<AreasTablesViewProps> = ({
         </View>
       </View>
     );
-  };
+  }, [onAreaPress, renderTable]);
 
-  // if (loading) {
-  //   return (
-  //     <View style={styles.loadingContainer}>
-  //       <ActivityIndicator size="large" color="#198754" />
-  //       <Text style={styles.loadingText}>Đang tải khu vực và bàn...</Text>
-  //     </View>
-  //   );
-  // }
+  // Memoized refresh control
+  const refreshControl = useMemo(() => (
+    <RefreshControl
+      refreshing={loading}
+      onRefresh={onRefresh}
+      colors={["#198754"]}
+      tintColor="#198754"
+    />
+  ), [loading, onRefresh]);
 
-  if (areas.length === 0) {
+  // Clear cache when areas change significantly
+  useEffect(() => {
+    if (areas.length === 0) {
+      setAreasCache(null);
+      console.log("🗑️ Cleared areas cache - no areas data");
+    } else {
+      console.log(`📊 Areas data updated: ${areas.length} areas, ${occupiedTables.length} occupied tables`);
+    }
+  }, [areas.length, occupiedTables.length]);
+
+  if (areas.length === 0 && !loading) {
     return (
       <View style={styles.emptyContainer}>
-        <Ionicons name="business-outline" size={60} color="#ddd" />
-        <Text style={styles.emptyText}>Chưa có khu vực nào</Text>
+        <Ionicons 
+          name={error ? "alert-circle-outline" : "business-outline"} 
+          size={60} 
+          color={error ? "#dc3545" : "#ddd"} 
+        />
+        <Text style={[styles.emptyText, error && styles.errorText]}>
+          {error || "Chưa có khu vực nào"}
+        </Text>
+        {error && (
+          <TouchableOpacity 
+            style={styles.retryButton} 
+            onPress={onRefresh}
+          >
+            <Text style={styles.retryButtonText}>Thử lại</Text>
+          </TouchableOpacity>
+        )}
       </View>
     );
   }
 
   // Tablet layout with sidebar
   if (isTablet) {
-    // Calculate total occupied tables and amount
-    const occupiedTables = getAllOccupiedTables();
     const totalOccupiedCount = occupiedTables.length;
-    const totalAmount = calculateTotalAmount();
 
     return (
       <View style={styles.tabletContainer}>
@@ -450,14 +481,7 @@ const AreasTablesView: React.FC<AreasTablesViewProps> = ({
             style={styles.tabletTablesScrollView}
             contentContainerStyle={styles.tabletTablesScrollContent}
             showsVerticalScrollIndicator={false}
-            refreshControl={
-              <RefreshControl
-                refreshing={loading}
-                onRefresh={onRefresh}
-                colors={["#198754"]}
-                tintColor="#198754"
-              />
-            }
+            refreshControl={refreshControl}
           >
             {renderTabletSelectedAreaTables()}
           </ScrollView>
@@ -504,14 +528,12 @@ const AreasTablesView: React.FC<AreasTablesViewProps> = ({
       keyExtractor={(item) => item.id}
       contentContainerStyle={styles.listContainer}
       showsVerticalScrollIndicator={false}
-      refreshControl={
-        <RefreshControl
-          refreshing={loading}
-          onRefresh={onRefresh}
-          colors={["#198754"]}
-          tintColor="#198754"
-        />
-      }
+      refreshControl={refreshControl}
+      maxToRenderPerBatch={3}
+      windowSize={8}
+      initialNumToRender={2}
+      updateCellsBatchingPeriod={50}
+      getItemLayout={undefined} // Let FlatList calculate automatically for better performance with dynamic content
     />
   );
 };
@@ -772,6 +794,22 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: "#666",
     marginTop: 10,
+    textAlign: "center",
+  },
+  errorText: {
+    color: "#dc3545",
+  },
+  retryButton: {
+    marginTop: 16,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    backgroundColor: "#198754",
+    borderRadius: 8,
+  },
+  retryButtonText: {
+    color: "#fff",
+    fontSize: 14,
+    fontWeight: "600",
   },
   selectedTableCard: {
     // backgroundColor: "#ffe6e6", // Màu đỏ nhạt

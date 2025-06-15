@@ -8,7 +8,7 @@ import {
 import { OrderType } from "@/src/api/types";
 import { OrderMode } from "@/src/services/buttonVisibilityService";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -371,6 +371,12 @@ export default function UnifiedOrderModal({
     const orderTypes = await ordersService.getOrderTypes();
     console.log("🔍 oooooooorderTypes:", orderTypes);
     setOrderTypes(orderTypes);
+    
+    // Set loại đơn hàng đầu tiên làm mặc định nếu chưa có loại đơn nào được chọn
+    if (orderTypes.length > 0 && !selectedOrderType) {
+      setSelectedOrderType(orderTypes[0]);
+      console.log("🎯 Set default order type:", orderTypes[0]);
+    }
   };
 
   const loadOrderDetail = async () => {
@@ -385,6 +391,13 @@ export default function UnifiedOrderModal({
 
       const detail = await ordersService.getOrderDetail(selectedOrder.id);
       console.log("✅ Order detail loaded:", detail);
+      console.log("🔍 Order detail orderType fields:", {
+        orderType: (detail as any).orderType,
+        orderTypeId: (detail as any).orderTypeId,
+        OrderType: (detail as any).OrderType,
+        OrderTypeId: (detail as any).OrderTypeId,
+        allKeys: Object.keys(detail)
+      });
       console.log(
         "📊 Products in reloaded order:",
         detail.products?.map((p) => ({
@@ -633,15 +646,32 @@ export default function UnifiedOrderModal({
 
     // Xác định loại đơn dựa trên logic nghiệp vụ
     const getOrderTypeText = () => {
-      // Nếu có orderType field và match với orderTypes
-      const orderType = (orderDetail as any).orderType;
+      // Kiểm tra nhiều field có thể chứa orderType
+      const orderType = (orderDetail as any).orderType || 
+                       (orderDetail as any).orderTypeId ||
+                       (orderDetail as any).OrderType ||
+                       (orderDetail as any).OrderTypeId;
+      
+      console.log("🔍 Checking orderType fields:", {
+        orderType: (orderDetail as any).orderType,
+        orderTypeId: (orderDetail as any).orderTypeId,
+        OrderType: (orderDetail as any).OrderType,
+        OrderTypeId: (orderDetail as any).OrderTypeId,
+        finalOrderType: orderType
+      });
+
       if (orderType && orderTypes.length > 0) {
+        // Thử match với id hoặc sourceId
         const matchedType = orderTypes.find(
           (type) =>
+            type.id === orderType?.toString() ||
             type.sourceId === orderType?.toString() ||
-            type.id === orderType?.toString()
+            type.id === orderType?.id ||
+            type.sourceId === orderType?.id
         );
+        
         if (matchedType) {
+          console.log("✅ Found matching order type:", matchedType);
           return matchedType.titles[0]?.title || "Không xác định";
         }
       }
@@ -668,10 +698,10 @@ export default function UnifiedOrderModal({
         )} */}
 
         {/* Info order type */}
-        {/* <View style={styles.orderInfoRow}>
+        <View style={styles.orderInfoRow}>
           <Text style={styles.orderInfoLabel}>Loại đơn:</Text>
           <Text style={styles.orderInfoValue}>{getOrderTypeText()}</Text>
-        </View> */}
+        </View>
 
         <View style={styles.orderInfoRow}>
           <Text style={styles.orderInfoLabel}>Mã đơn:</Text>
@@ -722,9 +752,9 @@ export default function UnifiedOrderModal({
     }
   };
 
-  const handleCustomerInfoSave = (newCustomerInfo: CustomerInfo) => {
+  const handleCustomerInfoSave = useCallback((newCustomerInfo: CustomerInfo) => {
     setCustomerInfo(newCustomerInfo);
-  };
+  }, []);
 
   // Xử lý tăng giảm số lượng cho đơn hàng hiện có
   const handleUpdateQuantityExistingOrder = async (
@@ -917,9 +947,11 @@ export default function UnifiedOrderModal({
         orderData.tableId = selectedTable.id;
       }
 
-      // Thêm orderType nếu đã chọn
-      if (selectedOrderType?.id) {
-        orderData.orderType = selectedOrderType;
+      // Thêm orderType - sử dụng selectedOrderType hoặc loại đầu tiên làm mặc định
+      const orderTypeToUse = selectedOrderType || (orderTypes.length > 0 ? orderTypes[0] : null);
+      if (orderTypeToUse?.id) {
+        orderData.orderType = orderTypeToUse;
+        console.log("🎯 Using order type:", orderTypeToUse);
       }
 
       console.log("🍽️ Creating order with data:", orderData);
@@ -1054,9 +1086,11 @@ export default function UnifiedOrderModal({
             orderData.tableId = selectedTable.id;
           }
 
-          // Thêm orderType nếu đã chọn
-          if (selectedOrderType?.id) {
-            orderData.orderType = selectedOrderType;
+          // Thêm orderType - sử dụng selectedOrderType hoặc loại đầu tiên làm mặc định
+          const orderTypeToUse = selectedOrderType || (orderTypes.length > 0 ? orderTypes[0] : null);
+          if (orderTypeToUse?.id) {
+            orderData.orderType = orderTypeToUse;
+            console.log("🎯 Using order type:", orderTypeToUse);
           }
 
           console.log("🍽️ Creating order asynchronously:", orderData);
@@ -1759,6 +1793,11 @@ export default function UnifiedOrderModal({
             onClose={() => setPaymentModalVisible(false)}
             onPayment={handlePayment}
             orderId={selectedOrder?.id}
+            initialCustomerInfo={{
+              customerName: customerInfo.customerName,
+              customerPhone: customerInfo.customerPhone,
+              customerAddress: customerInfo.customerAddress,
+            }}
           />
 
           {/* Customer Info Modal */}
@@ -1997,7 +2036,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
     marginBottom: isTablet ? 2 : 5,
-    paddingHorizontal: isTablet ? 12 : 0,
+    paddingHorizontal: isTablet ? 0 : 0,
   },
   orderInfoLabel: {
     fontSize: 15,
@@ -2080,9 +2119,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingVertical: isTablet ? 0 : 16,
     paddingHorizontal: 0,
-    borderBottomWidth: 1,
+    // borderBottomWidth: 1,
+    
     borderBottomColor: "#f0f0f0",
     backgroundColor: "#fff",
+    marginBottom: isTablet ? 15 : 0,
   },
   itemNumberContainer: {
     alignSelf: "flex-start",

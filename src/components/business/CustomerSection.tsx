@@ -1,4 +1,5 @@
-import React, { useState } from "react";
+import { Ionicons } from "@expo/vector-icons";
+import React, { useCallback, useRef, useState } from "react";
 import {
     Keyboard,
     KeyboardAvoidingView,
@@ -9,7 +10,7 @@ import {
     TextInput,
     TouchableOpacity,
     TouchableWithoutFeedback,
-    View,
+    View
 } from "react-native";
 
 interface CustomerInfo {
@@ -39,6 +40,14 @@ export default function CustomerSection({
     initialData?.customerAddress || ""
   );
 
+  // Use ref to store timeout for debouncing
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Refs for input fields
+  const phoneInputRef = useRef<TextInput>(null);
+  const nameInputRef = useRef<TextInput>(null);
+  const addressInputRef = useRef<TextInput>(null);
+
   React.useEffect(() => {
     if (shouldReset) {
       // Reset về giá trị mặc định
@@ -52,29 +61,49 @@ export default function CustomerSection({
     }
   }, [initialData, shouldReset]);
 
-  const handleSave = () => {
-    // Sử dụng giá trị mặc định nếu không nhập
-    const finalCustomerName =
-      customerName.trim() || "Người mua không cung cấp thông tin";
-    const finalCustomerPhone = customerPhone.trim() || "0000000000";
+  // Memoize the save function to prevent infinite loops
+  const debouncedSave = useCallback((customerInfo: CustomerInfo) => {
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+    }
+    
+    timeoutRef.current = setTimeout(() => {
+      onSave(customerInfo);
+    }, 300); // 300ms debounce
+  }, [onSave]);
 
+  // Auto save when any field changes with debounce
+  React.useEffect(() => {
     const customerInfo: CustomerInfo = {
-      customerName: finalCustomerName,
-      customerPhone: finalCustomerPhone,
+      customerName: customerName.trim(),
+      customerPhone: customerPhone.trim(),
       customerAddress: customerAddress.trim(),
     };
+    
+    // Only call save if at least one field has content or if it's a reset
+    if (customerName || customerPhone || customerAddress || shouldReset) {
+      debouncedSave(customerInfo);
+    }
 
-    onSave(customerInfo);
-    Keyboard.dismiss();
-  };
+    // Cleanup timeout on unmount
+    return () => {
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
+    };
+  }, [customerName, customerPhone, customerAddress, debouncedSave, shouldReset]);
 
-  const handleCancel = () => {
-    // Reset về giá trị ban đầu
-    setCustomerName(initialData?.customerName || "");
-    setCustomerPhone(initialData?.customerPhone || "");
-    setCustomerAddress(initialData?.customerAddress || "");
-    Keyboard.dismiss();
-  };
+  // Reset function to clear all customer info and focus on phone input
+  const handleReset = useCallback(() => {
+    setCustomerName("");
+    setCustomerPhone("");
+    setCustomerAddress("");
+    
+    // Focus on phone input after reset
+    setTimeout(() => {
+      phoneInputRef.current?.focus();
+    }, 100);
+  }, []);
 
   return (
     <KeyboardAvoidingView
@@ -87,6 +116,14 @@ export default function CustomerSection({
           {/* Header */}
           <View style={styles.header}>
             <Text style={styles.headerTitle}>Thông tin khách hàng</Text>
+            <TouchableOpacity 
+              style={styles.resetButton} 
+              onPress={handleReset}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="refresh-outline" size={18} color="#666" />
+              <Text style={styles.resetButtonText}>Reset</Text>
+            </TouchableOpacity>
           </View>
 
           {/* Content - Always visible */}
@@ -109,6 +146,7 @@ export default function CustomerSection({
                 maxLength={15}
                 returnKeyType="next"
                 blurOnSubmit={false}
+                ref={phoneInputRef}
               />
              
             </View>
@@ -125,6 +163,7 @@ export default function CustomerSection({
                 maxLength={100}
                 returnKeyType="next"
                 blurOnSubmit={false}
+                ref={nameInputRef}
               />
               
             </View>
@@ -143,23 +182,8 @@ export default function CustomerSection({
                 maxLength={200}
                 returnKeyType="done"
                 blurOnSubmit={true}
+                ref={addressInputRef}
               />
-            </View>
-
-            {/* Action Buttons */}
-            <View style={styles.footer}>
-              <TouchableOpacity
-                style={styles.cancelButton}
-                onPress={handleCancel}
-              >
-                <Text style={styles.cancelButtonText}>Hủy</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.saveButton}
-                onPress={handleSave}
-              >
-                <Text style={styles.saveButtonText}>Lưu</Text>
-              </TouchableOpacity>
             </View>
           </ScrollView>
         </View>
@@ -181,11 +205,30 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 12,
     paddingBottom: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
   },
   headerTitle: {
     fontSize: 14,
     fontWeight: "600",
     color: "#999",
+    flex: 1,
+  },
+  resetButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 8,
+    backgroundColor: "#f5f5f5",
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: "#e0e0e0",
+  },
+  resetButtonText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#666",
+    marginLeft: 4,
   },
   scrollView: {
     flex: 1,
@@ -217,41 +260,5 @@ const styles = StyleSheet.create({
   textArea: {
     height: 60,
     textAlignVertical: "top",
-  },
-  hint: {
-    fontSize: 11,
-    color: "#666",
-    marginTop: 4,
-    fontStyle: "italic",
-  },
-  footer: {
-    flexDirection: "row",
-    gap: 12,
-    marginTop: 8,
-  },
-  cancelButton: {
-    flex: 1,
-    paddingVertical: 10,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: "#ddd",
-    alignItems: "center",
-  },
-  cancelButtonText: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#666",
-  },
-  saveButton: {
-    flex: 1,
-    paddingVertical: 10,
-    borderRadius: 6,
-    backgroundColor: "#198754",
-    alignItems: "center",
-  },
-  saveButtonText: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#fff",
   },
 });

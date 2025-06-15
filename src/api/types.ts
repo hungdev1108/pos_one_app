@@ -256,6 +256,8 @@ export interface OrderListItem {
   date: string;
   exportWarehouse: boolean;
   voucher?: Voucher;
+  tableName?: string;
+  areaName?: string;
 }
 
 // Orders List Response

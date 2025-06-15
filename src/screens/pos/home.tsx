@@ -13,7 +13,6 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 import {
   Area,
-  areasService,
   authService,
   Category,
   OrderListItem,
@@ -21,7 +20,7 @@ import {
   Product,
   Table,
   UserInfo,
-  warehouseService,
+  warehouseService
 } from "@/src/api";
 import AllCategoriesProductList from "@/src/components/business/AllCategoriesProductList";
 import AreasTablesView from "@/src/components/business/AreasTablesView";
@@ -33,6 +32,7 @@ import UnifiedOrderModal from "@/src/components/business/UnifiedOrderModal";
 import AppBar from "@/src/components/common/AppBar";
 import DrawerMenu from "@/src/components/common/DrawerMenu";
 import { showAddProductToast } from "@/src/components/common/ToastCustome";
+import { useAreasData } from "@/src/hooks/useAreasData";
 
 interface OrderItem {
   id: string;
@@ -84,7 +84,16 @@ export default function HomeScreen() {
   const [allProducts, setAllProducts] = useState<{
     [categoryId: string]: Product[];
   }>({});
-  const [areas, setAreas] = useState<Area[]>([]);
+  
+  // Use the new areas hook
+  const { 
+    areas, 
+    loading: areasLoading, 
+    error: areasError,
+    loadAreas, 
+    refreshAreas 
+  } = useAreasData();
+  
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(
     null
   );
@@ -99,7 +108,6 @@ export default function HomeScreen() {
   const [categoriesLoading, setCategoriesLoading] = useState(true);
   const [productsLoading, setProductsLoading] = useState(true);
   const [allProductsLoading, setAllProductsLoading] = useState(true);
-  const [areasLoading, setAreasLoading] = useState(true);
   const [drawerVisible, setDrawerVisible] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [activeTab, setActiveTab] = useState<TabType>(TabType.MENU);
@@ -140,12 +148,12 @@ export default function HomeScreen() {
     }
   }, [selectedCategoryId]);
 
-  // Load areas when switching to TABLES tab
+  // Load areas when switching to TABLES tab (handled by useAreasData hook)
   useEffect(() => {
-    if (activeTab === TabType.TABLES && areas.length === 0) {
-      loadAreas();
+    if (activeTab === TabType.TABLES) {
+      loadAreas(); // Will use cache if data is fresh
     }
-  }, [activeTab]);
+  }, [activeTab, loadAreas]);
 
   // Load all products when switching to MENU tab
   useEffect(() => {
@@ -344,24 +352,6 @@ export default function HomeScreen() {
       ]);
     } finally {
       setAllProductsLoading(false);
-    }
-  };
-
-  const loadAreas = async () => {
-    try {
-      setAreasLoading(true);
-      const areasData = await areasService.getAreas();
-
-      console.log("🏢 Areas data received:", areasData);
-      setAreas(areasData);
-    } catch (error) {
-      console.error("Error loading areas:", error);
-      setAreas([]);
-      Alert.alert("Lỗi", "Không thể tải danh sách khu vực. Vui lòng thử lại.", [
-        { text: "OK" },
-      ]);
-    } finally {
-      setAreasLoading(false);
     }
   };
 
@@ -689,7 +679,7 @@ export default function HomeScreen() {
     setRefreshing(true);
 
     if (activeTab === TabType.TABLES) {
-      await loadAreas();
+      await refreshAreas(); // Use hook's refresh method
     } else if (activeTab === TabType.MENU) {
       await Promise.all([loadCategories(), loadAllProducts()]);
     } else if (activeTab === TabType.ORDERS) {
@@ -702,7 +692,7 @@ export default function HomeScreen() {
   };
 
   const onRefreshAreas = async () => {
-    await loadAreas();
+    await refreshAreas(); // Use hook's refresh method
   };
 
   const handleAddToOrder = async (product: Product) => {
@@ -944,10 +934,10 @@ export default function HomeScreen() {
 
     setActiveTab(tab);
 
-    // Refresh data khi chuyển về tab Tables để đảm bảo dữ liệu mới nhất
+    // Load areas when switching to Tables tab (with caching)
     if (tab === TabType.TABLES) {
-      console.log("🔄 Refreshing areas when switching to Tables tab");
-      loadAreas();
+      console.log("🔄 Loading areas when switching to Tables tab");
+      loadAreas(); // Will use cache if data is fresh
     }
   };
 
@@ -1063,6 +1053,7 @@ export default function HomeScreen() {
           <AreasTablesView
             areas={areas}
             loading={areasLoading}
+            error={areasError}
             onRefresh={onRefreshAreas}
             onTablePress={handleTablePress}
             onAreaPress={handleAreaPress}
@@ -1263,6 +1254,7 @@ export default function HomeScreen() {
           }}
           onPayment={handlePaymentComplete}
           orderId={tempOrderData?.orderId}
+          initialCustomerInfo={tempOrderData?.customerInfo}
         />
       </View>
     </SafeAreaView>

@@ -1,5 +1,5 @@
 import { Entypo, Ionicons } from "@expo/vector-icons";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   Alert,
   Dimensions,
@@ -23,6 +23,11 @@ interface PaymentModalProps {
   onClose: () => void;
   onPayment: (paymentData: PaymentData) => void;
   orderId?: string;
+  initialCustomerInfo?: {
+    customerName?: string;
+    customerPhone?: string;
+    customerAddress?: string;
+  };
 }
 
 interface PaymentData {
@@ -71,6 +76,7 @@ export default function PaymentModal({
   onClose,
   onPayment,
   orderId,
+  initialCustomerInfo,
 }: PaymentModalProps) {
   const insets = useSafeAreaInsets();
   const [customerPaid, setCustomerPaid] = useState<string>("");
@@ -82,17 +88,25 @@ export default function PaymentModal({
   const [invoiceType, setInvoiceType] = useState<"individual" | "business">(
     "individual"
   );
-  const [customerInfo, setCustomerInfo] = useState<CustomerInvoiceInfo>({
-    individualName: "",
-    individualPhone: "",
-    individualAddress: "",
+  
+  // Memoize initial customer info to prevent infinite loops
+  const memoizedInitialCustomerInfo = useMemo(() => ({
+    individualName: initialCustomerInfo?.customerName || "",
+    individualPhone: initialCustomerInfo?.customerPhone || "",
+    individualAddress: initialCustomerInfo?.customerAddress || "",
     individualEmail: "",
     taxCodePersonal: "",
     taxCodeBusiness: "",
     businessName: "",
     businessAddress: "",
     businessEmail: "",
-  });
+  }), [
+    initialCustomerInfo?.customerName,
+    initialCustomerInfo?.customerPhone,
+    initialCustomerInfo?.customerAddress
+  ]);
+
+  const [customerInfo, setCustomerInfo] = useState<CustomerInvoiceInfo>(memoizedInitialCustomerInfo);
   const [isTaxLookupLoading, setIsTaxLookupLoading] = useState(false);
 
   // State cho QR Code popup
@@ -113,24 +127,14 @@ export default function PaymentModal({
       setSelectedBank("");
       setBillCounts({});
       setInvoiceType("individual");
-      setCustomerInfo({
-        individualName: "",
-        individualPhone: "",
-        individualAddress: "",
-        individualEmail: "",
-        taxCodePersonal: "",
-        taxCodeBusiness: "",
-        businessName: "",
-        businessAddress: "",
-        businessEmail: "",
-      });
+      setCustomerInfo(memoizedInitialCustomerInfo);
       setIsTaxLookupLoading(false);
       setQrModalVisible(false);
       setQrImageUrl("");
       setQrPaymentData(null);
       setIsLoadingQR(false);
     }
-  }, [visible]);
+  }, [visible, memoizedInitialCustomerInfo]);
 
   const formatPrice = (price: number): string => {
     return new Intl.NumberFormat("vi-VN").format(price);
@@ -378,79 +382,163 @@ export default function PaymentModal({
           )}
         </View>
 
-        {/* Container for bank options and suggested amounts */}
-        <View style={styles.bankAndSuggestedAmountsContainer}>
-          {/* First column: Bank options */}
-          <View style={styles.bankColumn}>
-            {BANK_OPTIONS.map((bank) => (
-              <TouchableOpacity
-                key={bank.code}
-                style={[
-                  styles.bankButton,
-                  { backgroundColor: bank.color },
-                  selectedBank === bank.code && styles.selectedBankButton,
-                  bank.code === "vnpay" && isLoadingQR && { opacity: 0.6 },
-                ]}
-                disabled={bank.code === "vnpay" && isLoadingQR}
-                onPress={() => {
-                  if (bank.code === "vnpay") {
-                    handleVNPayQR();
-                  } else {
-                    setSelectedBank(bank.code);
-                  }
-                }}
-              >
-                <Text style={styles.bankButtonText}>
-                  {bank.code === "vnpay" && isLoadingQR
-                    ? "Đang tạo QR..."
-                    : bank.name}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-          {/* Second column: suggested amounts */}
-          <View style={styles.suggestedAmountsColumn}>
-            {/* Grid for suggested amounts */}
-            <View style={styles.exactPaymentRow}>
-              <TouchableOpacity
-                style={[
-                  styles.exactPaymentButton,
-                  { backgroundColor: "#4dd4ac" },
-                ]}
-                onPress={() => handleAmountSuggestion(totalAmount, true)}
-              >
-                <Text style={styles.exactPaymentLabel}>
-                  <Text style={styles.exactPaymentAmount}>
-                    {formatNumber(totalAmount)}
-                  </Text>
-                </Text>
-              </TouchableOpacity>
-            </View>
-            <View style={styles.suggestedAmountsGrid}>
-              {SUGGESTED_AMOUNTS.map((amount, index) => (
+        {isTablet ? (
+          // Tablet layout: Bank options on top row, suggested amounts on bottom row
+          <View style={styles.tabletBankContainer}>
+            {/* First row: Bank options */}
+            <View style={styles.bankOptionsRow}>
+              {BANK_OPTIONS.map((bank) => (
                 <TouchableOpacity
-                  onPress={() => handleAmountSuggestion(amount)}
-                  key={index}
+                  key={bank.code}
                   style={[
-                    styles.suggestedAmountButton,
-                    { backgroundColor: "#a6e9d5" },
+                    styles.tabletBankButton,
+                    selectedBank === bank.code && styles.selectedBankButton,
+                    bank.code === "vnpay" && isLoadingQR && { opacity: 0.6 },
                   ]}
+                  disabled={bank.code === "vnpay" && isLoadingQR}
+                  onPress={() => {
+                    if (bank.code === "vnpay") {
+                      handleVNPayQR();
+                    } else {
+                      setSelectedBank(bank.code);
+                    }
+                  }}
                 >
-                  <Text style={styles.suggestedAmountText}>
-                    {formatNumber(amount)}
+                  <Image
+                    source={
+                      bank.code === "vnpay"
+                        ? require("../../../assets/images/PNG_VNPAY-QR.png")
+                        : require("../../../assets/images/PNG_VNPAY-POS.png")
+                    }
+                    style={styles.bankButtonImage}
+                    resizeMode="contain"
+                  />
+                  <Text style={styles.tabletBankButtonText}>
+                    {bank.code === "vnpay" && isLoadingQR
+                      ? "Đang tạo QR..."
+                      : bank.name}
                   </Text>
-                  {billCounts[amount] && (
-                    <View style={styles.billCountBadge}>
-                      <Text style={styles.billCountText}>
-                        {billCounts[amount]}
-                      </Text>
-                    </View>
-                  )}
                 </TouchableOpacity>
               ))}
             </View>
+
+            {/* Second row: Suggested amounts */}
+            <View style={styles.suggestedAmountsRow}>
+              <View style={styles.exactPaymentRow}>
+                <TouchableOpacity
+                  style={[
+                    styles.exactPaymentButton,
+                    { backgroundColor: "#4dd4ac" },
+                  ]}
+                  onPress={() => handleAmountSuggestion(totalAmount, true)}
+                >
+                  <Text style={styles.exactPaymentLabel}>
+                    <Text style={styles.exactPaymentAmount}>
+                      {formatNumber(totalAmount)}
+                    </Text>
+                  </Text>
+                </TouchableOpacity>
+              </View>
+              <View style={styles.suggestedAmountsGrid}>
+                {SUGGESTED_AMOUNTS.map((amount, index) => (
+                  <TouchableOpacity
+                    onPress={() => handleAmountSuggestion(amount)}
+                    key={index}
+                    style={[
+                      styles.suggestedAmountButton,
+                      { backgroundColor: "#a6e9d5" },
+                    ]}
+                  >
+                    <Text style={styles.suggestedAmountText}>
+                      {formatNumber(amount)}
+                    </Text>
+                    {billCounts[amount] && (
+                      <View style={styles.billCountBadge}>
+                        <Text style={styles.billCountText}>
+                          {billCounts[amount]}
+                        </Text>
+                      </View>
+                    )}
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
           </View>
-        </View>
+        ) : (
+          // Mobile layout: Original side-by-side layout
+          <View style={styles.bankAndSuggestedAmountsContainer}>
+            {/* First column: Bank options */}
+            <View style={styles.bankColumn}>
+              {BANK_OPTIONS.map((bank) => (
+                <TouchableOpacity
+                  key={bank.code}
+                  style={[
+                    styles.bankButton,
+                    { backgroundColor: bank.color },
+                    selectedBank === bank.code && styles.selectedBankButton,
+                    bank.code === "vnpay" && isLoadingQR && { opacity: 0.6 },
+                  ]}
+                  disabled={bank.code === "vnpay" && isLoadingQR}
+                  onPress={() => {
+                    if (bank.code === "vnpay") {
+                      handleVNPayQR();
+                    } else {
+                      setSelectedBank(bank.code);
+                    }
+                  }}
+                >
+                  <Text style={styles.bankButtonText}>
+                    {bank.code === "vnpay" && isLoadingQR
+                      ? "Đang tạo QR..."
+                      : bank.name}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            {/* Second column: suggested amounts */}
+            <View style={styles.suggestedAmountsColumn}>
+              {/* Grid for suggested amounts */}
+              <View style={styles.exactPaymentRow}>
+                <TouchableOpacity
+                  style={[
+                    styles.exactPaymentButton,
+                    { backgroundColor: "#4dd4ac" },
+                  ]}
+                  onPress={() => handleAmountSuggestion(totalAmount, true)}
+                >
+                  <Text style={styles.exactPaymentLabel}>
+                    <Text style={styles.exactPaymentAmount}>
+                      {formatNumber(totalAmount)}
+                    </Text>
+                  </Text>
+                </TouchableOpacity>
+              </View>
+              <View style={styles.suggestedAmountsGrid}>
+                {SUGGESTED_AMOUNTS.map((amount, index) => (
+                  <TouchableOpacity
+                    onPress={() => handleAmountSuggestion(amount)}
+                    key={index}
+                    style={[
+                      styles.suggestedAmountButton,
+                      { backgroundColor: "#a6e9d5" },
+                    ]}
+                  >
+                    <Text style={styles.suggestedAmountText}>
+                      {formatNumber(amount)}
+                    </Text>
+                    {billCounts[amount] && (
+                      <View style={styles.billCountBadge}>
+                        <Text style={styles.billCountText}>
+                          {billCounts[amount]}
+                        </Text>
+                      </View>
+                    )}
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+          </View>
+        )}
       </View>
     );
   };
@@ -542,6 +630,68 @@ export default function PaymentModal({
               <Text style={styles.voucherCheckText}>Kiểm tra</Text>
             </TouchableOpacity>
           </View>
+        </View>
+      </View>
+    );
+  };
+
+  const renderCustomerInfo = () => {
+    return (
+      <View style={styles.customerInfoContainer}>
+        <Text style={styles.sectionTitle}>Thông tin khách hàng</Text>
+        
+        {/* Số điện thoại */}
+        <View style={styles.inputGroup}>
+          <Text style={styles.inputLabel}>Số điện thoại</Text>
+          <TextInput
+            style={styles.textInput}
+            value={customerInfo.individualPhone || ""}
+            onChangeText={(value) =>
+              handleCustomerInfoChange("individualPhone", value)
+            }
+            placeholder="0000000000"
+            placeholderTextColor="#999"
+            keyboardType="phone-pad"
+            maxLength={15}
+            returnKeyType="next"
+            blurOnSubmit={false}
+          />
+        </View>
+
+        {/* Tên khách hàng */}
+        <View style={styles.inputGroup}>
+          <Text style={styles.inputLabel}>Tên khách hàng</Text>
+          <TextInput
+            style={styles.textInput}
+            value={customerInfo.individualName || ""}
+            onChangeText={(value) =>
+              handleCustomerInfoChange("individualName", value)
+            }
+            placeholder="Người mua không cung cấp thông tin"
+            placeholderTextColor="#999"
+            maxLength={100}
+            returnKeyType="next"
+            blurOnSubmit={false}
+          />
+        </View>
+
+        {/* Địa chỉ */}
+        <View style={styles.inputGroup}>
+          <Text style={styles.inputLabel}>Địa chỉ</Text>
+          <TextInput
+            style={[styles.textInput, styles.textArea]}
+            value={customerInfo.individualAddress || ""}
+            onChangeText={(value) =>
+              handleCustomerInfoChange("individualAddress", value)
+            }
+            placeholder="Nhập địa chỉ (tùy chọn)"
+            placeholderTextColor="#999"
+            multiline
+            numberOfLines={3}
+            maxLength={200}
+            returnKeyType="done"
+            blurOnSubmit={true}
+          />
         </View>
       </View>
     );
@@ -766,29 +916,47 @@ export default function PaymentModal({
           </TouchableOpacity>
         </View>
 
-        <ScrollView
-          style={styles.content}
-          showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled"
-        >
-          {isTablet ? (
-            // Layout for tablet: 2 columns
-            <>
-              <View style={styles.tabletMainContainer}>
-                {/* Column 1: Payment Info */}
-                <View style={styles.tabletColumn1}>{renderPaymentInfo()}</View>
+        {isTablet ? (
+          // Layout for tablet: 3 columns with individual scrolling
+          <View style={styles.tabletMainContainer}>
+            {/* Column 1: Payment Info */}
+            <ScrollView 
+              style={styles.tabletColumn1}
+              contentContainerStyle={styles.tabletColumnContent}
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+            >
+              {renderPaymentInfo()}
+            </ScrollView>
 
-                {/* Column 2: Bank Options */}
-                <View style={styles.tabletColumn2}>
-                  {renderBankOptionsAndSuggestedAmounts()}
-                </View>
-              </View>
+            {/* Column 2: Bank Options */}
+            <ScrollView 
+              style={styles.tabletColumn2}
+              contentContainerStyle={styles.tabletColumnContent}
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+            >
+              {renderBankOptionsAndSuggestedAmounts()}
+            </ScrollView>
 
-              {/* Type of invoice to be issued - full width */}
+            {/* Column 3: Customer Info and Invoice Type */}
+            <ScrollView 
+              style={styles.tabletColumn3}
+              contentContainerStyle={styles.tabletColumnContent}
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+            >
+              {renderCustomerInfo()}
               {renderTypeOfInvoice()}
-            </>
-          ) : (
-            // Layout for mobile: original layout
+            </ScrollView>
+          </View>
+        ) : (
+          <ScrollView
+            style={styles.content}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+          >
+            {/* Layout for mobile: original layout */}
             <>
               {/* Total Amount */}
               <View style={styles.totalSection}>
@@ -878,8 +1046,8 @@ export default function PaymentModal({
               {/* Type of invoice to be issued */}
               {renderTypeOfInvoice()}
             </>
+          </ScrollView>
           )}
-        </ScrollView>
 
         {/* Footer */}
         <View
@@ -1031,6 +1199,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingBottom: 100,
   },
+  contentTablet: {
+    flex: 1,
+    paddingBottom: 20,
+  },
   totalSection: {
     backgroundColor: "#fff",
     borderRadius: 12,
@@ -1172,6 +1344,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     flexWrap: "wrap",
     gap: isTablet ? 10 : 8,
+    marginTop: 10,
   },
   suggestedAmountButton: {
     // borderWidth: 1,
@@ -1532,13 +1705,63 @@ const styles = StyleSheet.create({
   },
   tabletMainContainer: {
     flexDirection: "row",
-    gap: 16,
-    marginBottom: 8,
+    gap: 12,
+    flex: 1,
+    paddingHorizontal: 20,
+    paddingTop: 8,
   },
   tabletColumn1: {
     flex: 1,
   },
   tabletColumn2: {
     flex: 1,
+  },
+  tabletColumn3: {
+    flex: 1,
+  },
+  tabletColumnContent: {
+    paddingBottom: 20,
+  },
+  customerInfoContainer: {
+    backgroundColor: "#fff",
+    borderRadius: 12,
+    padding: 20,
+    marginTop: 8,
+  },
+  textArea: {
+    height: 80,
+    textAlignVertical: "top",
+  },
+  tabletBankContainer: {
+    flex: 1,
+  },
+  bankOptionsRow: {
+    flexDirection: "row",
+    gap: 10,
+  },
+  tabletBankButton: {
+    padding: 10,
+    borderRadius: 8,
+    alignItems: "center",
+    borderWidth: 2,
+    borderColor: "transparent",
+    backgroundColor: "#f9fafb",
+    flex: 1,
+    minHeight: 80,
+    justifyContent: "center",
+  },
+  bankButtonImage: {
+    width: 50,
+    height: 30,
+    marginBottom: 5,
+  },
+  tabletBankButtonText: {
+    fontSize: 12,
+    fontWeight: "bold",
+    color: "#333",
+    textAlign: "center",
+  },
+  suggestedAmountsRow: {
+    marginTop: 15,
   },
 });
