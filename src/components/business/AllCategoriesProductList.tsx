@@ -30,14 +30,56 @@ interface AllCategoriesProductListProps {
 
 const { width } = Dimensions.get("window");
 
+// Responsive layout constants
+const isTablet = width >= 720;
+const isSmallTablet = width >= 560;
+
+// Mobile layout
 const numColumns = 2;
 const ITEM_WIDTH = (width - 48) / numColumns;
 
-// Breakpint for tablet android and ios
-const isTablet = width >= 720;
-const isSmallTablet = width >= 560;
-const numColumns_tablet = 6;
-const ITEM_WIDTH_tablet = (width - 80) / numColumns_tablet;
+// Tablet responsive columns - smart adaptive logic
+const getTabletColumns = (screenWidth: number): number => {
+  if (!isTablet) return 2; // Mobile always 2 columns
+  
+  // Tablet: Start with 4 columns as default, adapt based on available width
+  const SIDEBAR_WIDTH = 130;
+  const TABLET_PADDING = 32;
+  const ITEM_SPACING = 16;
+  const MIN_ITEM_WIDTH = 120; // Minimum width per item for good UX (reduced for better fit)
+  
+  // Calculate available width for products
+  const availableWidth = screenWidth - SIDEBAR_WIDTH - TABLET_PADDING;
+  
+  // Calculate how many columns can fit with minimum width
+  const maxPossibleColumns = Math.floor((availableWidth + ITEM_SPACING) / (MIN_ITEM_WIDTH + ITEM_SPACING));
+  
+  // Target 4 columns, but intelligently adapt
+  let columns = 5;
+  
+  // If screen is too small for 4 columns, reduce appropriately
+  if (maxPossibleColumns < 4) {
+    columns = Math.max(2, maxPossibleColumns); // Never go below 2 columns
+  }
+  
+  // For very large screens, allow up to 5 columns but cap at 4 for consistency
+  columns = Math.min(columns, 5);
+  
+  console.log(`📱 Tablet layout: ${screenWidth}px width, ${availableWidth}px available, ${columns} columns`);
+  
+  return columns;
+};
+
+const numColumns_tablet = getTabletColumns(width);
+
+// Constants for tablet layout calculations
+const SIDEBAR_WIDTH = 130;
+const TABLET_PADDING = 32; // 16px * 2 sides
+const ITEM_SPACING = 16;
+
+const ITEM_WIDTH_tablet = isTablet 
+  ? (width - SIDEBAR_WIDTH - TABLET_PADDING - (ITEM_SPACING * (numColumns_tablet - 1))) / numColumns_tablet
+  : ITEM_WIDTH; // Fallback to mobile width if somehow not tablet
 
 const AllCategoriesProductList: React.FC<AllCategoriesProductListProps> = ({
   categories,
@@ -247,35 +289,46 @@ const AllCategoriesProductList: React.FC<AllCategoriesProductListProps> = ({
       <View
         key={product.id}
         style={styles.productItem}
-        // activeOpacity={1}
-        // onPress={() => {
-        //   onProductSelect(product);
-        // }}
       >
         <View style={styles.productCard}>
-          <TouchableOpacity onPress= {() => handleIncreaseQuantity(product)}>
-          <View style={styles.imageContainer}>
-            {imageSource ? (
-              <ExpoImage
-                source={imageSource}
-                style={styles.productImage}
-                contentFit="contain"
-                contentPosition="center"
-                // transition={200}
-              />
-            ) : (
-              <View style={styles.placeholderImage}>
-                <Entypo name="drink" size={32} color="#dee2e6" />
+          {/* Vùng click chính - bao phủ toàn bộ card ngoại trừ quantity controls */}
+          <TouchableOpacity 
+            style={styles.productClickableArea}
+            onPress={() => handleIncreaseQuantity(product)}
+            activeOpacity={0.7}
+          >
+            <View style={styles.imageContainer}>
+              {imageSource ? (
+                <ExpoImage
+                  source={imageSource}
+                  style={styles.productImage}
+                  contentFit="contain"
+                  contentPosition="center"
+                  // transition={200}
+                />
+              ) : (
+                <View style={styles.placeholderImage}>
+                  <Entypo name="drink" size={32} color="#dee2e6" />
+                </View>
+              )}
+            </View>
+            <View style={styles.productInfo}>
+              <View style={styles.titleContainer}>
+                <Text 
+                  style={styles.productTitle} 
+                  numberOfLines={2}
+                  ellipsizeMode="tail"
+                >
+                  {product.title}
+                </Text>
               </View>
-            )}
-          </View>
-          <View style={styles.productInfo}>
-            <Text style={styles.productTitle} numberOfLines={2}>
-              {product.title}
-            </Text>
-            <Text style={styles.productPrice}>{formattedPrice}</Text>
-          </View>
+              <View style={styles.priceContainer}>
+                <Text style={styles.productPrice}>{formattedPrice}</Text>
+              </View>
+            </View>
           </TouchableOpacity>
+          
+          {/* Quantity controls overlay */}
           {renderQuantityControls(product)}
         </View>
       </View>
@@ -514,12 +567,19 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 2,
     position: "relative",
-    height: isTablet ? ITEM_WIDTH_tablet * 1.3 : ITEM_WIDTH * 1.2,
+    height: isTablet ? ITEM_WIDTH_tablet * 1.35 : ITEM_WIDTH * 1.3, // Tăng chiều cao trên tablet để có đủ chỗ
+    display: "flex",
+    flexDirection: "column",
+  },
+  productClickableArea: {
+    flex: 1,
+    width: "100%",
+    zIndex: 1, // Thấp hơn quantity controls
   },
   imageContainer: {
     padding: 5,
     width: "100%",
-    height: isTablet ? ITEM_WIDTH_tablet * 0.5 : ITEM_WIDTH * 0.6,
+    height: isTablet ? ITEM_WIDTH_tablet * 0.5 : ITEM_WIDTH * 0.55, // Giảm tỷ lệ hình để có chỗ cho text
     // backgroundColor: "#f0f0f0",
   },
   productImage: {
@@ -534,23 +594,74 @@ const styles = StyleSheet.create({
     backgroundColor: "#f8f9fa",
   },
   productInfo: {
-    padding: 12,
+    padding: isTablet ? 8 : 12,
+    paddingTop: isTablet ? 6 : 8, // Giảm padding top để có thêm chỗ
+    paddingBottom: isTablet ? 45 : 46, // Đảm bảo có đủ chỗ cho quantity controls
+    flex: 1,
+    justifyContent: "flex-start", // Không dùng space-between để tránh overlap
+    minHeight: isTablet ? 100 : 95, // Tăng min height trên tablet để có đủ không gian
+    position: "relative", // Đảm bảo z-index hoạt động
+  },
+  titleContainer: {
+    // Không dùng flex để tránh conflict với fixed height
+    justifyContent: "flex-start",
+    marginBottom: isTablet ? 12 : 8, // Tăng khoảng cách trên tablet
+    paddingHorizontal: isTablet ? 4 : 0, // Thêm padding để tránh overflow
+  },
+  priceContainer: {
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: isTablet ? 12 : 8, // Tăng khoảng cách với quantity controls
+    marginTop: isTablet ? 8 : 4, // Tăng khoảng cách với title trên tablet
   },
   productTitle: {
-    fontSize: 16,
+    fontSize: (() => {
+      if (!isTablet) return 14; // Mobile - giảm size để có chỗ cho giá
+      if (width < 768) return 11; // Small tablet
+      if (width < 1024) return 12; // Medium tablet  
+      return 13; // Large tablet
+    })(),
     fontWeight: "500",
     color: "#333",
-    marginBottom: 14,
-    lineHeight: 18,
+    lineHeight: (() => {
+      if (!isTablet) return 16; // Mobile
+      if (width < 768) return 13; // Small tablet
+      if (width < 1024) return 14; // Medium tablet
+      return 15; // Large tablet
+    })(),
     textAlign: "center",
-    height: isTablet ? 40 : isSmallTablet ? 24 : 18,
-    // backgroundColor: "red",
+    // Auto height for exactly 2 lines với safety margin
+    // minHeight: (() => {
+    //   if (!isTablet) return 32; // Mobile: 16 * 2
+    //   if (width < 768) return 28; // Small tablet: 13 * 2 + padding
+    //   if (width < 1024) return 30; // Medium tablet: 14 * 2 + padding
+    //   return 32; // Large tablet: 15 * 2 + padding
+    // })(),
+    // maxHeight: (() => {
+    //   if (!isTablet) return 32; // Mobile: 16 * 2
+    //   if (width < 768) return 28; // Small tablet: 13 * 2 + padding
+    //   if (width < 1024) return 30; // Medium tablet: 14 * 2 + padding
+    //   return 32; // Large tablet: 15 * 2 + padding
+    // })(),
+    // overflow: "hidden",
+    zIndex: 2, // Đảm bảo không bị che bởi các element khác
+    position: "relative",
   },
   productPrice: {
-    fontSize: 16,
+    fontSize: (() => {
+      if (!isTablet) return 15; // Mobile
+      if (width < 768) return 12; // Small tablet
+      if (width < 1024) return 13; // Medium tablet
+      return 14; // Large tablet
+    })(),
     fontWeight: "bold",
     color: "#198754",
     textAlign: "center",
+    zIndex: 5, // Cao hơn clickable area, thấp hơn quantity controls
+    position: "relative",
+    backgroundColor: "transparent",
+    paddingVertical: 2,
+    paddingHorizontal: isTablet ? 4 : 0, // Thêm padding để tránh overflow
   },
   addButton: {
     display: "none",
@@ -571,7 +682,7 @@ const styles = StyleSheet.create({
   },
   quantityBadge: {
     position: "absolute",
-    bottom: 10,
+    bottom: 8,
     right: 10,
     backgroundColor: "#dc3545",
     borderRadius: 16,
@@ -579,6 +690,7 @@ const styles = StyleSheet.create({
     height: 30,
     justifyContent: "center",
     alignItems: "center",
+    zIndex: 10, // Cao hơn clickable area để có thể click
    
   },
   quantityBadgeText: {
@@ -588,14 +700,14 @@ const styles = StyleSheet.create({
   },
   quantityControlsContainer: {
     position: "absolute",
-    bottom: 10,
+    bottom: 8,
     left: 0,
     right: 0,
     flexDirection: "row",
     justifyContent: "center",
     alignItems: "center",
     paddingHorizontal: 8,
-    zIndex: 10,
+    zIndex: 10, // Cao hơn clickable area để có thể click
     elevation: 10,
   },
   quantityButton: {
@@ -783,7 +895,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     flexWrap: "wrap",
     justifyContent: "flex-start",
-    gap: 16,
+    gap: ITEM_SPACING,
   },
   tabletEmptyProducts: {
     flex: 1,

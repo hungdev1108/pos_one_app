@@ -37,8 +37,23 @@ enum OrderTabType {
 const { width } = Dimensions.get("window");
 
 const isTablet = width >= 720;
-const numColumns = isTablet ? 3 : 1;
-const ITEM_WIDTH = isTablet ? (width - 48) / 3 : width - 32;
+
+// Responsive columns based on screen width
+const getNumColumns = (screenWidth: number): number => {
+  if (screenWidth < 720) return 1; // Mobile: 1 column
+  if (screenWidth < 1024) return 2; // Small tablet: 2 columns  
+  if (screenWidth < 1440) return 3; // Medium tablet: 3 columns
+  return 4; // Large tablet/desktop: 4 columns
+};
+
+const numColumns = getNumColumns(width);
+const SIDEBAR_WIDTH = 130; // Sidebar width
+const HORIZONTAL_PADDING = 32; // 16px * 2 sides  
+const ITEM_SPACING = 16; // Gap between items
+
+const ITEM_WIDTH = isTablet 
+  ? (width - SIDEBAR_WIDTH - HORIZONTAL_PADDING - (ITEM_SPACING * (numColumns - 1))) / numColumns 
+  : width - 32;
 
 // Cache for orders by tab to avoid unnecessary API calls
 interface OrdersCache {
@@ -493,6 +508,39 @@ const OrdersView: React.FC<OrdersViewProps> = ({
       OrderTabType.RECEIVED,
     ];
 
+    // Tablet layout: render tabs as sidebar items
+    if (isTablet) {
+      return tabs.map((tab) => (
+        <TouchableOpacity
+          key={tab}
+          style={[
+            styles.tabletTabItem,
+            activeTab === tab && styles.tabletTabItemSelected,
+          ]}
+          onPress={() => handleTabPress(tab)}
+        >
+          <View style={styles.tabletTabContent}>
+            <Ionicons
+              name={getTabIcon(tab)}
+              size={20}
+              color={activeTab === tab ? "#198754" : "#666"}
+            />
+            <Text
+              style={[
+                styles.tabletTabText,
+                activeTab === tab && styles.tabletTabTextSelected,
+              ]}
+              numberOfLines={2}
+            >
+              {getTabTitle(tab)}
+            </Text>
+          </View>
+          {activeTab === tab && <View style={styles.tabletTabIndicator} />}
+        </TouchableOpacity>
+      ));
+    }
+
+    // Mobile layout: horizontal tabs
     return (
       <View style={styles.tabBar}>
         {tabs.map((tab) => (
@@ -577,6 +625,40 @@ const OrdersView: React.FC<OrdersViewProps> = ({
     );
   }
 
+  // Tablet layout with sidebar
+  if (isTablet) {
+    return (
+      <View style={styles.tabletContainer}>
+        {/* Left: Orders List */}
+        <View style={styles.tabletOrdersSection}>
+          <FlatList
+            key={numColumns}
+            {...flatListProps}
+            refreshControl={
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={handleRefresh}
+                colors={["#198754"]}
+                tintColor="#198754"
+              />
+            }
+          />
+        </View>
+
+        {/* Right: Tabs Sidebar */}
+        <View style={styles.tabletSidebar}>
+          {/* <View style={styles.tabletSidebarHeader}>
+            <Text style={styles.tabletSidebarTitle}>Trạng thái</Text>
+          </View> */}
+          <View style={styles.tabletTabsContainer}>
+            {renderTabBar}
+          </View>
+        </View>
+      </View>
+    );
+  }
+
+  // Mobile layout (original)
   return (
     <View style={styles.container}>
       {renderTabBar}
@@ -641,12 +723,14 @@ const styles = StyleSheet.create({
   ordersListContent: {
     paddingHorizontal: 16,
     paddingVertical: 16,
+    paddingBottom: 100, // Extra padding for bottom navigation
   },
   emptyListContent: {
     flexGrow: 1,
   },
   row: {
     justifyContent: "space-between",
+    gap: ITEM_SPACING, // Consistent spacing between items
   },
   orderCard: {
     backgroundColor: "#fff",
@@ -659,8 +743,8 @@ const styles = StyleSheet.create({
     shadowRadius: 2,
   },
   orderCardTablet: {
-    width: ITEM_WIDTH - 8,
-    marginHorizontal: 4,
+    width: ITEM_WIDTH,
+    marginHorizontal: 0, // Gap được handle bởi row style
   },
   orderHeader: {
     flexDirection: "row",
@@ -814,6 +898,75 @@ const styles = StyleSheet.create({
     marginLeft: 8,
     fontSize: 14,
     color: "#666",
+  },
+  tabletTabItem: {
+    paddingVertical: 16,
+    paddingHorizontal: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "#f0f0f0",
+    position: "relative",
+  },
+  tabletTabItemSelected: {
+    backgroundColor: "#e8f5e8",
+  },
+  tabletTabContent: {
+    flexDirection: "column",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  tabletTabText: {
+    fontSize: 12,
+    fontWeight: "500",
+    color: "#666",
+    marginTop: 4,
+    textAlign: "center",
+  },
+  tabletTabTextSelected: {
+    color: "#198754",
+    fontWeight: "bold",
+  },
+  tabletTabIndicator: {
+    position: "absolute",
+    left: 0,
+    top: 0,
+    bottom: 0,
+    width: 3,
+    backgroundColor: "#198754",
+  },
+  // Tablet layout styles
+  tabletContainer: {
+    flex: 1,
+    flexDirection: "row",
+    backgroundColor: "#f8f9fa",
+  },
+  tabletOrdersSection: {
+    flex: 1,
+  },
+  tabletSidebar: {
+    width: 130,
+    backgroundColor: "#ffffff",
+    borderLeftWidth: 1,
+    borderLeftColor: "#e9ecef",
+    elevation: 2,
+    shadowColor: "#000",
+    shadowOffset: { width: -1, height: 0 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+  },
+  tabletSidebarHeader: {
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: "#e9ecef",
+    backgroundColor: "#f8f9fa",
+  },
+  tabletSidebarTitle: {
+    fontSize: 16,
+    fontWeight: "bold",
+    color: "#333",
+    textAlign: "center",
+  },
+  tabletTabsContainer: {
+    flex: 1,
   },
 });
 

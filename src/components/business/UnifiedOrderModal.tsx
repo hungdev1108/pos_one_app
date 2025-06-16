@@ -310,6 +310,9 @@ export default function UnifiedOrderModal({
   const [paymentModalVisible, setPaymentModalVisible] = useState(false);
   const [orderTypes, setOrderTypes] = useState<OrderType[]>([]);
 
+  // State để lưu orderId của đơn hàng mới vừa tạo  
+  const [newlyCreatedOrderId, setNewlyCreatedOrderId] = useState<string | null>(null);
+
   // Kitchen print modal state
   const [kitchenPrintModalVisible, setKitchenPrintModalVisible] =
     useState(false);
@@ -341,6 +344,7 @@ export default function UnifiedOrderModal({
       setOrderDetailItems([]);
       setOrderStatus("");
       setOrderStatusText("");
+      setNewlyCreatedOrderId(null); // ✅ Reset orderId khi đóng modal
       loadOrderTypes();
     }
   }, [visible, selectedOrder]);
@@ -883,7 +887,7 @@ export default function UnifiedOrderModal({
   const handleCreateOrder = async () => {
     if (loading) {
       console.log(
-        "⚠️ Order creation already in progress, ignoring duplicate call"
+        "⚠️ Create order already in progress, ignoring duplicate call"
       );
       return;
     }
@@ -896,12 +900,23 @@ export default function UnifiedOrderModal({
     try {
       setLoading(true);
 
-      // Chuẩn bị dữ liệu sản phẩm
+      // ✅ Generate GUID ID for order consistency
+      const generateGuid = () => {
+        return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+          const r = Math.random() * 16 | 0;
+          const v = c == 'x' ? r : (r & 0x3 | 0x8);
+          return v.toString(16);
+        });
+      };
+
+      const orderId = generateGuid();
+
       const products = orderItems.map((item) => ({
         productId: item.product.id,
         quantity: item.quantity,
         price: item.product.price,
-        priceIncludeVAT: item.product.priceAfterDiscount || item.product.price,
+        priceIncludeVAT:
+          item.product.priceAfterDiscount || item.product.price,
         note: "",
         vat: 10,
         name: item.product.title.trim(),
@@ -909,13 +924,12 @@ export default function UnifiedOrderModal({
         unitName: item.product.unitName || "Cái",
       }));
 
-      // Sử dụng thông tin khách hàng đã lưu hoặc giá trị mặc định
       const finalCustomerName =
         customerInfo.customerName || "Người mua không cung cấp thông tin";
       const finalCustomerPhone = customerInfo.customerPhone || "0000000000";
 
-      // Tạo request
       const orderData: any = {
+        id: orderId, // ✅ GUID ID for consistency
         customerName: finalCustomerName,
         customerPhone: finalCustomerPhone,
         products,
@@ -961,6 +975,9 @@ export default function UnifiedOrderModal({
       console.log("📋 Create order response:", response);
 
       if (response.successful && response.data) {
+        // ✅ LƯU ORDER ID VÀO STATE
+        setNewlyCreatedOrderId(response.data.id);
+        
         Alert.alert(
           "Thành công",
           `Đã tạo đơn hàng ${response.data.code}${
@@ -1023,7 +1040,104 @@ export default function UnifiedOrderModal({
     try {
       setLoading(true);
 
-      // BƯỚC 1: Tạo biến tổng lưu thông tin đơn hàng tạm thời
+      // ✅ Generate GUID ID for order consistency
+      const generateGuid = () => {
+        return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+          const r = Math.random() * 16 | 0;
+          const v = c == 'x' ? r : (r & 0x3 | 0x8);
+          return v.toString(16);
+        });
+      };
+
+      const orderGuid = generateGuid();
+
+      // BƯỚC 1: Tạo đơn hàng TRƯỚC KHI chuyển sang thanh toán
+      const products = orderItems.map((item) => ({
+        productId: item.product.id,
+        quantity: item.quantity,
+        price: item.product.price,
+        priceIncludeVAT:
+          item.product.priceAfterDiscount || item.product.price,
+        note: "",
+        vat: 10,
+        name: item.product.title.trim(),
+        productCode: item.product.code,
+        unitName: item.product.unitName || "Cái",
+      }));
+
+      const finalCustomerName =
+        customerInfo.customerName || "Người mua không cung cấp thông tin";
+      const finalCustomerPhone = customerInfo.customerPhone || "0000000000";
+
+      const orderData: any = {
+        id: orderGuid, // ✅ GUID ID for consistency
+        customerName: finalCustomerName,
+        customerPhone: finalCustomerPhone,
+        products,
+        note: "",
+        paymentMethod: 0,
+        priceIncludeVAT: true,
+        discountType: 0,
+        discount: 0,
+        discountVAT: 0,
+        orderCustomerName: finalCustomerName,
+        orderCustomerPhone: finalCustomerPhone,
+        isDelivery: false,
+        debt: {
+          debit: 0,
+          debitExpire: new Date().toISOString(),
+        },
+        delivery: {
+          deliveryId: 0,
+          deliveryName: "",
+          deliveryCode: "",
+          deliveryFee: 0,
+          cod: false,
+        },
+        flashSales: [],
+      };
+
+      if (selectedTable?.id) {
+        orderData.tableId = selectedTable.id;
+      }
+
+      // Thêm orderType - sử dụng selectedOrderType hoặc loại đầu tiên làm mặc định
+      const orderTypeToUse = selectedOrderType || (orderTypes.length > 0 ? orderTypes[0] : null);
+      if (orderTypeToUse?.id) {
+        orderData.orderType = orderTypeToUse;
+        console.log("🎯 Using order type:", orderTypeToUse);
+      }
+
+      console.log("🍽️ Creating order synchronously for payment:", orderData);
+      
+      // ✅ TẠO ĐƠN HÀNG ĐỒNG BỘ TRƯỚC
+      const response = await ordersService.createOrder(orderData);
+
+      if (!response.successful || !response.data) {
+        throw new Error(response.error || "Không thể tạo đơn hàng");
+      }
+
+      const orderId = response.data.id;
+      const orderCode = response.data.code;
+
+      console.log("✅ Order created successfully with ID:", orderId);
+
+      // ✅ LƯU ORDER ID VÀO STATE
+      setNewlyCreatedOrderId(orderId);
+
+      // BƯỚC 2: In chế biến async (không block UI)
+      const printKitchenAsync = async () => {
+        try {
+          console.log("🍳 Kitchen print API call for order:", orderId);
+          // await ordersService.printKitchen(orderId);
+          console.log("✅ Đã in chế biến");
+        } catch (kitchenError: any) {
+          console.error("❌ Kitchen print error:", kitchenError);
+          console.log("⚠️ Đã in chế biến (simulated)");
+        }
+      };
+
+      // BƯỚC 3: Tạo tempOrderData với orderId đã có
       const tempOrderData: TempOrderData = {
         totalAmount,
         subtotal,
@@ -1031,100 +1145,12 @@ export default function UnifiedOrderModal({
         orderItems: [...orderItems], // Clone để tránh reference issues
         customerInfo: { ...customerInfo },
         selectedTable: selectedTable,
+        orderId: orderId, // ✅ ĐÃ CÓ ORDER ID từ API response
       };
 
-      console.log("💾 Lưu thông tin tạm vào biến tổng:", tempOrderData);
+      console.log("💾 TempOrderData với orderId:", tempOrderData);
 
-      // BƯỚC 2: Tạo đơn hàng và in chế biến async
-      const createOrderAsync = async () => {
-        try {
-          const products = orderItems.map((item) => ({
-            productId: item.product.id,
-            quantity: item.quantity,
-            price: item.product.price,
-            priceIncludeVAT:
-              item.product.priceAfterDiscount || item.product.price,
-            note: "",
-            vat: 10,
-            name: item.product.title.trim(),
-            productCode: item.product.code,
-            unitName: item.product.unitName || "Cái",
-          }));
-
-          const finalCustomerName =
-            customerInfo.customerName || "Người mua không cung cấp thông tin";
-          const finalCustomerPhone = customerInfo.customerPhone || "0000000000";
-
-          const orderData: any = {
-            customerName: finalCustomerName,
-            customerPhone: finalCustomerPhone,
-            products,
-            note: "",
-            paymentMethod: 0,
-            priceIncludeVAT: true,
-            discountType: 0,
-            discount: 0,
-            discountVAT: 0,
-            orderCustomerName: finalCustomerName,
-            orderCustomerPhone: finalCustomerPhone,
-            isDelivery: false,
-            debt: {
-              debit: 0,
-              debitExpire: new Date().toISOString(),
-            },
-            delivery: {
-              deliveryId: 0,
-              deliveryName: "",
-              deliveryCode: "",
-              deliveryFee: 0,
-              cod: false,
-            },
-            flashSales: [],
-          };
-
-          if (selectedTable?.id) {
-            orderData.tableId = selectedTable.id;
-          }
-
-          // Thêm orderType - sử dụng selectedOrderType hoặc loại đầu tiên làm mặc định
-          const orderTypeToUse = selectedOrderType || (orderTypes.length > 0 ? orderTypes[0] : null);
-          if (orderTypeToUse?.id) {
-            orderData.orderType = orderTypeToUse;
-            console.log("🎯 Using order type:", orderTypeToUse);
-          }
-
-          console.log("🍽️ Creating order asynchronously:", orderData);
-          const response = await ordersService.createOrder(orderData);
-
-          if (response.successful && response.data) {
-            const orderId = response.data.id;
-
-            // BƯỚC 2.1: In chế biến async
-            try {
-              console.log("🍳 Kitchen print API call for order:", orderId);
-              // await ordersService.printKitchen(orderId);
-              console.log("✅ Đã in chế biến");
-            } catch (kitchenError: any) {
-              console.error("❌ Kitchen print error:", kitchenError);
-              console.log("⚠️ Đã in chế biến (simulated)");
-            }
-
-            // Cập nhật orderId vào temp data nếu callback parent cần
-            tempOrderData.orderId = orderId;
-
-            console.log("✅ Order created successfully with ID:", orderId);
-            return orderId;
-          } else {
-            throw new Error(response.error || "Không thể tạo đơn hàng");
-          }
-        } catch (error: any) {
-          console.error("❌ Error creating order asynchronously:", error);
-          // Có thể thông báo lỗi cho user sau này nếu cần
-          return null;
-        }
-      };
-
-      // BƯỚC 3: Clear form và reset trạng thái
+      // BƯỚC 4: Clear form và reset trạng thái
       setShouldResetCustomerInfo(true);
       setCustomerInfo({
         customerName: "",
@@ -1135,28 +1161,22 @@ export default function UnifiedOrderModal({
 
       onClearOrder?.();
 
-      // BƯỚC 4: Chuyển thẳng sang màn hình thanh toán với thông tin tạm
+      // BƯỚC 5: Chuyển sang màn hình thanh toán với orderId đã có
       onClose();
 
       if (onDirectPayment) {
-        console.log(
-          "🚀 Chuyển thẳng sang màn hình thanh toán với thông tin tạm"
-        );
+        console.log("🚀 Chuyển sang màn hình thanh toán với orderId:", orderId);
         onDirectPayment(tempOrderData);
       } else {
         // Fallback về luồng cũ nếu parent chưa support
         console.log("⚠️ Parent chưa support luồng mới, fallback về luồng cũ");
-        // Thực thi tạo đơn hàng đồng bộ
-        const orderId = await createOrderAsync();
-        if (orderId) {
-          onOrderCreated?.(orderId, true);
-        }
+        onOrderCreated?.(orderId, true);
       }
 
-      // Thực thi tạo đơn hàng async trong background (không block UI)
-      createOrderAsync();
+      // BƯỚC 6: In chế biến async trong background
+      printKitchenAsync();
 
-      console.log("✅ Optimized payment flow completed");
+      console.log("✅ Optimized payment flow completed with orderId:", orderId);
     } catch (error: any) {
       console.error("❌ Error in optimized payment flow:", error);
       Alert.alert(
@@ -1192,6 +1212,10 @@ export default function UnifiedOrderModal({
     }
   };
 
+  const handleKitchenPrintFlowlog = async () => {
+    console.log("🔄 Kitchen print flow log");
+  };
+
   // Hàm xử lý luồng in chế biến: tạo đơn hàng → hiển thị bill in chế biến
   const handleKitchenPrintFlow = async () => {
     if (loading) {
@@ -1202,12 +1226,24 @@ export default function UnifiedOrderModal({
     }
 
     if (orderItems.length === 0) {
-      Alert.alert("Lỗi", "Chưa có món nào được chọn");
+      // Alert.alert("Lỗi", "Chưa có món nào được chọn");
+      console.log("In chế biến cho đơn hàng:", orderDetail?.id);
       return;
     }
 
     try {
       setLoading(true);
+
+      // ✅ Generate GUID ID for order consistency
+      const generateGuid = () => {
+        return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+          const r = Math.random() * 16 | 0;
+          const v = c == 'x' ? r : (r & 0x3 | 0x8);
+          return v.toString(16);
+        });
+      };
+
+      const orderGuid = generateGuid();
 
       // Chuẩn bị dữ liệu sản phẩm
       const products = orderItems.map((item) => ({
@@ -1229,6 +1265,7 @@ export default function UnifiedOrderModal({
 
       // Tạo request
       const orderData: any = {
+        id: orderGuid, // ✅ GUID ID for consistency
         customerName: finalCustomerName,
         customerPhone: finalCustomerPhone,
         products,
@@ -1352,7 +1389,8 @@ export default function UnifiedOrderModal({
             break;
           case "print_kitchen":
             // Logic in chế biến cho đơn hàng mới: tạo đơn và hiển thị bill
-            await handleKitchenPrintFlow();
+            // await handleKitchenPrintFlow();
+            await handleKitchenPrintFlowlog();
             break;
           case "print_bill":
           case "print_temporary":
@@ -1431,7 +1469,8 @@ export default function UnifiedOrderModal({
           break;
         case "print_kitchen":
           // Logic in chế biến cho đơn hàng mới: tạo đơn và hiển thị bill
-          await handleKitchenPrintFlow();
+          // await handleKitchenPrintFlow();
+          await handleKitchenPrintFlowlog();
           break;
         default:
           console.log("Action không được hỗ trợ cho đơn hàng mới:", action);
@@ -1792,7 +1831,7 @@ export default function UnifiedOrderModal({
             totalAmount={totalAmount}
             onClose={() => setPaymentModalVisible(false)}
             onPayment={handlePayment}
-            orderId={selectedOrder?.id}
+            orderId={selectedOrder?.id ?? newlyCreatedOrderId ?? undefined}
             initialCustomerInfo={{
               customerName: customerInfo.customerName,
               customerPhone: customerInfo.customerPhone,

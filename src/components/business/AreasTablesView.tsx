@@ -25,10 +25,51 @@ interface AreasTablesViewProps {
 
 const { width } = Dimensions.get("window");
 
-// Breakpoint for tablet android and ios
+// Responsive layout constants
 const isTablet = width >= 720;
-const numColumns_tablet = 6;
-const ITEM_WIDTH_tablet = (width - 48) / numColumns_tablet;
+
+// Tablet responsive columns - smart adaptive logic
+const getTabletColumns = (screenWidth: number): number => {
+  if (!isTablet) return 2; // Mobile always 2 columns
+  
+  // Tablet: Start with 5 columns as default, adapt based on available width
+  const SIDEBAR_WIDTH = 130;
+  const TABLET_PADDING = 32;
+  const ITEM_SPACING = 16;
+  const MIN_ITEM_WIDTH = 120; // Minimum width per item for good UX
+  
+  // Calculate available width for tables
+  const availableWidth = screenWidth - SIDEBAR_WIDTH - TABLET_PADDING;
+  
+  // Calculate how many columns can fit with minimum width
+  const maxPossibleColumns = Math.floor((availableWidth + ITEM_SPACING) / (MIN_ITEM_WIDTH + ITEM_SPACING));
+  
+  // Target 5 columns, but intelligently adapt
+  let columns = 5;
+  
+  // If screen is too small for 5 columns, reduce appropriately
+  if (maxPossibleColumns < 5) {
+    columns = Math.max(2, maxPossibleColumns); // Never go below 2 columns
+  }
+  
+  // Cap at 5 for consistency
+  columns = Math.min(columns, 5);
+  
+  console.log(`📱 Tablet tables layout: ${screenWidth}px width, ${availableWidth}px available, ${columns} columns`);
+  
+  return columns;
+};
+
+const numColumns_tablet = getTabletColumns(width);
+
+// Constants for tablet layout calculations
+const SIDEBAR_WIDTH = 130;
+const TABLET_PADDING = 32; // 16px * 2 sides
+const ITEM_SPACING = 16;
+
+const ITEM_WIDTH_tablet = isTablet 
+  ? (width - SIDEBAR_WIDTH - TABLET_PADDING - (ITEM_SPACING * (numColumns_tablet - 1))) / numColumns_tablet
+  : (width - 48) / 2; // Fallback to mobile width if somehow not tablet
 
 // Cache for expensive calculations
 interface AreasCache {
@@ -102,6 +143,15 @@ const AreasTablesView: React.FC<AreasTablesViewProps> = ({
 
   const formatPrice = useCallback((price: number): string => {
     return new Intl.NumberFormat("vi-VN").format(price);
+  }, []);
+
+  // Format date to dd/M/yyyy (e.g., 16/6/2025)
+  const formatDate = useCallback((dateString: string): string => {
+    const date = new Date(dateString);
+    const day = date.getDate();
+    const month = date.getMonth() + 1; // getMonth() returns 0-11
+    const year = date.getFullYear();
+    return `${day}/${month}/${year}`;
   }, []);
 
   // Memoized expensive calculations with caching
@@ -249,14 +299,7 @@ const AreasTablesView: React.FC<AreasTablesViewProps> = ({
 
                 <View style={styles.dateContainer}>
                   <Text style={styles.orderDate}>
-                    {new Date(table.order.createDate).toLocaleDateString(
-                      "vi-VN",
-                      {
-                        day: "2-digit",
-                        month: "2-digit",
-                        year: "numeric",
-                      }
-                    )}
+                    {formatDate(table.order.createDate)}
                   </Text>
                 </View>
               </View>
@@ -277,7 +320,7 @@ const AreasTablesView: React.FC<AreasTablesViewProps> = ({
         )}
       </TouchableOpacity>
     );
-  }, [selectedTable, getTableStatusColor, getTableStatusText, getTableStatusIcon, getTableCalculations, formatPrice, onTablePress]);
+  }, [selectedTable, getTableStatusColor, getTableStatusText, getTableStatusIcon, getTableCalculations, formatPrice, formatDate, onTablePress]);
 
   // Memoized tablet area item
   const renderTabletAreaItem = useCallback((area: Area) => {
@@ -628,7 +671,12 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   tableNameLarge: {
-    fontSize: 18,
+    fontSize: (() => {
+      if (!isTablet) return 18; // Mobile
+      if (width < 768) return 14; // Small tablet
+      if (width < 1024) return 15; // Medium tablet
+      return 16; // Large tablet
+    })(),
     fontWeight: "bold",
     color: "#333",
     marginBottom: 8,
@@ -666,7 +714,12 @@ const styles = StyleSheet.create({
     marginRight: 4,
   },
   tableName: {
-    fontSize: 16,
+    fontSize: (() => {
+      if (!isTablet) return 16; // Mobile
+      if (width < 768) return 12; // Small tablet
+      if (width < 1024) return 13; // Medium tablet
+      return 14; // Large tablet
+    })(),
     fontWeight: "bold",
     color: "#333",
     // flex: 1,
@@ -766,12 +819,22 @@ const styles = StyleSheet.create({
     marginLeft: 8,
   },
   totalAmount: {
-    fontSize: 15,
+    fontSize: (() => {
+      if (!isTablet) return 15; // Mobile
+      if (width < 768) return 12; // Small tablet
+      if (width < 1024) return 13; // Medium tablet
+      return 14; // Large tablet
+    })(),
     fontWeight: "bold",
     // color: "#dc3545",
     color: "#198754",
     textAlign: "right",
-    lineHeight: 14,
+    lineHeight: (() => {
+      if (!isTablet) return 14; // Mobile
+      if (width < 768) return 11; // Small tablet
+      if (width < 1024) return 12; // Medium tablet
+      return 13; // Large tablet
+    })(),
   },
   loadingContainer: {
     flex: 1,
@@ -828,7 +891,12 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   productCountNumber: {
-    fontSize: 16,
+    fontSize: (() => {
+      if (!isTablet) return 16; // Mobile
+      if (width < 768) return 13; // Small tablet
+      if (width < 1024) return 14; // Medium tablet
+      return 15; // Large tablet
+    })(),
     fontWeight: "bold",
     color: "#333",
   },
@@ -857,6 +925,7 @@ const styles = StyleSheet.create({
   },
   tabletTablesScrollContent: {
     padding: 16,
+    paddingBottom: 100, // Extra padding for bottom navigation
   },
   tabletSidebar: {
     width: 130,
@@ -905,7 +974,11 @@ const styles = StyleSheet.create({
     backgroundColor: "#e8f5e8",
   },
   tabletAreaText: {
-    fontSize: 15,
+    fontSize: (() => {
+      if (width < 768) return 12; // Small tablet
+      if (width < 1024) return 13; // Medium tablet
+      return 14; // Large tablet
+    })(),
     color: "#666",
     fontWeight: "500",
     marginBottom: 4,
@@ -942,7 +1015,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     flexWrap: "wrap",
     justifyContent: "flex-start",
-    gap: 16,
+    gap: ITEM_SPACING, // Consistent spacing between tables
   },
   tabletEmptyTables: {
     flex: 1,

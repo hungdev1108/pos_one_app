@@ -280,7 +280,26 @@ export default function PaymentModal({
       setIsLoadingQR(true);
       console.log("🔄 Calling VNPAY QR API for orderId:", orderId);
 
-      const paymentResponse = await ordersService.getPaymentMethods(orderId);
+      // ✅ KIỂM TRA VÀ LẤY ORDER ID THẬT
+      let actualOrderId = orderId;
+      
+      // Nếu orderId là số (từ đơn hàng mới), cần lấy orderId thật từ API
+      if (/^\d+$/.test(orderId)) {
+        console.log("🔍 Detected numeric orderId, fetching actual orderId from API...");
+        try {
+          const orderDetail = await ordersService.getOrderDetail(orderId);
+          if (orderDetail.id && orderDetail.id !== orderId) {
+            actualOrderId = orderDetail.id;
+            console.log("✅ Got actual orderId from API:", actualOrderId);
+          }
+        } catch (error) {
+          console.warn("⚠️ Could not fetch order detail, using original orderId:", error);
+        }
+      }
+
+      console.log("🎯 Using orderId for VNPAY QR:", actualOrderId);
+
+      const paymentResponse = await ordersService.getPaymentMethods(actualOrderId);
       console.log("✅ VNPAY QR API response:", paymentResponse);
 
       if (paymentResponse && paymentResponse.qr) {
@@ -1740,7 +1759,7 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   tabletBankButton: {
-    padding: 10,
+    padding: 20,
     borderRadius: 8,
     alignItems: "center",
     borderWidth: 2,
@@ -1751,8 +1770,8 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   bankButtonImage: {
-    width: 50,
-    height: 30,
+    width: 70,
+    height: 70,
     marginBottom: 5,
   },
   tabletBankButtonText: {

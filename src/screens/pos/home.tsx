@@ -1,5 +1,27 @@
+/**
+ * HOME SCREEN - POS System
+ * 
+ * ===== LUỒNG CHUYỂN BÀN MỚI =====
+ * 1. Khi chuyển bàn → tự động TẠO ĐƠN HÀNG THẬT trong DB cho bàn hiện tại (nếu có món)
+ * 2. Bàn trống → load draft order (nếu có) để tiếp tục chỉnh sửa
+ * 3. Bàn có khách → xóa draft order và load order hiện tại từ areas data
+ * 4. Fallback: Nếu tạo order thất bại → lưu vào draft order
+ * 5. Tạo đơn hàng thành công → xóa draft order
+ * 
+ * ===== AUTO ORDER CREATION =====
+ * - autoCreateOrderInDB() - Tự động tạo đơn hàng thực trong database
+ * - loadOrderFromAPIForOccupiedTable() - Load order hiện tại của bàn có khách
+ * 
+ * ===== DRAFT ORDER MANAGEMENT (Fallback) =====
+ * - draftOrders: Map<tableId, DraftOrder> - Backup khi tạo order thất bại
+ * - saveDraftOrder() - Lưu order nháp cho bàn
+ * - loadDraftOrder() - Load order nháp của bàn
+ * - clearDraftOrder() - Xóa order nháp của bàn
+ * - hasDraftOrder() - Kiểm tra bàn có order nháp không
+ */
+
 import { Ionicons } from "@expo/vector-icons";
-import { router } from "expo-router";
+import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
   Alert,
@@ -31,7 +53,7 @@ import PaymentModal from "@/src/components/business/PaymentModal";
 import UnifiedOrderModal from "@/src/components/business/UnifiedOrderModal";
 import AppBar from "@/src/components/common/AppBar";
 import DrawerMenu from "@/src/components/common/DrawerMenu";
-import { showAddProductToast } from "@/src/components/common/ToastCustome";
+import { showAddProductToast, showAutoSaveFailedToast, showAutoSaveOrderToast } from "@/src/components/common/ToastCustome";
 import { useAreasData } from "@/src/hooks/useAreasData";
 
 interface OrderItem {
@@ -61,10 +83,23 @@ interface TempOrderData {
     customerAddress: string;
   };
   selectedTable?: Table | null;
-  orderId?: string;
+  orderId?: string; // ID đơn hàng sau khi tạo
 }
 
-// Interface cho dữ liệu thanh toán
+// Interface cho draft order (đơn hàng nháp theo bàn)
+interface DraftOrder {
+  tableId: string;
+  tableName: string;
+  orderItems: OrderItem[];
+  customerInfo?: {
+    customerName: string;
+    customerPhone: string;
+    customerAddress: string;
+  };
+  createdAt: number;
+  modifiedAt: number;
+}
+
 interface PaymentData {
   totalAmount: number;
   customerPaid: number;
@@ -78,6 +113,7 @@ const { width } = Dimensions.get("window");
 const isTablet = width >= 720;
 
 export default function HomeScreen() {
+  const router = useRouter();
   const [userInfo, setUserInfo] = useState<UserInfo | null>(null);
   const [categories, setCategories] = useState<Category[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
@@ -104,6 +140,11 @@ export default function HomeScreen() {
   const [selectedTableForOrder, setSelectedTableForOrder] =
     useState<Table | null>(null);
   const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
+  
+  // ===== NEW: Draft orders management =====
+  const [draftOrders, setDraftOrders] = useState<Map<string, DraftOrder>>(new Map());
+  const [savingDraft, setSavingDraft] = useState(false);
+  
   const [loading, setLoading] = useState(true);
   const [categoriesLoading, setCategoriesLoading] = useState(true);
   const [productsLoading, setProductsLoading] = useState(true);
@@ -129,6 +170,231 @@ export default function HomeScreen() {
   const [tempOrderData, setTempOrderData] = useState<TempOrderData | null>(
     null
   );
+
+  // ===== DRAFT ORDERS UTILITIES =====
+  
+  /**
+   * Lưu draft order cho bàn hiện tại
+   */
+  const saveDraftOrder = async (tableId: string, tableName: string, items: OrderItem[]) => {
+    if (items.length === 0) {
+      // Nếu không có món nào, xóa draft order của bàn này
+      setDraftOrders(prev => {
+        const newMap = new Map(prev);
+        newMap.delete(tableId);
+        return newMap;
+      });
+      console.log(`🗑️ Removed empty draft order for table ${tableName}`);
+      return;
+    }
+
+    const draftOrder: DraftOrder = {
+      tableId,
+      tableName,
+      orderItems: [...items], // Clone array
+      createdAt: Date.now(),
+      modifiedAt: Date.now(),
+    };
+
+    setDraftOrders(prev => {
+      const newMap = new Map(prev);
+      const existingDraft = newMap.get(tableId);
+      if (existingDraft) {
+        draftOrder.createdAt = existingDraft.createdAt; // Giữ nguyên thời gian tạo
+      }
+      newMap.set(tableId, draftOrder);
+      return newMap;
+    });
+
+    console.log(`💾 Saved draft order for table ${tableName} with ${items.length} items`);
+  };
+
+  /**
+   * Load draft order cho bàn được chọn
+   */
+  const loadDraftOrder = (tableId: string): OrderItem[] => {
+    const draftOrder = draftOrders.get(tableId);
+    if (draftOrder) {
+      console.log(`📋 Loaded draft order for table ${draftOrder.tableName} with ${draftOrder.orderItems.length} items`);
+      return [...draftOrder.orderItems]; // Clone array
+    }
+    return [];
+  };
+
+  /**
+   * Xóa draft order của bàn
+   */
+  const clearDraftOrder = (tableId: string, tableName: string) => {
+    setDraftOrders(prev => {
+      const newMap = new Map(prev);
+      newMap.delete(tableId);
+      return newMap;
+    });
+    console.log(`🗑️ Cleared draft order for table ${tableName}`);
+  };
+
+  /**
+   * Kiểm tra bàn có draft order không
+   */
+  const hasDraftOrder = (tableId: string): boolean => {
+    return draftOrders.has(tableId);
+  };
+
+  /**
+   * Tự động tạo đơn hàng thực trong database
+   * Thay thế cho việc lưu draft order
+   */
+  const autoCreateOrderInDB = async (tableId: string, tableName: string, items: OrderItem[]): Promise<string | null> => {
+    if (items.length === 0) {
+      console.log(`⚠️ No items to create order for table ${tableName}`);
+      return null;
+    }
+
+    try {
+      console.log(`🍽️ Auto-creating order in DB for table ${tableName} with ${items.length} items`);
+
+      // ✅ Generate GUID ID for order consistency
+      const generateGuid = () => {
+        return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+          const r = Math.random() * 16 | 0;
+          const v = c == 'x' ? r : (r & 0x3 | 0x8);
+          return v.toString(16);
+        });
+      };
+
+      const orderId = generateGuid();
+
+      // Chuẩn bị dữ liệu sản phẩm
+      const products = items.map((item) => ({
+        productId: item.product.id,
+        quantity: item.quantity,
+        price: item.product.price,
+        priceIncludeVAT: item.product.priceAfterDiscount || item.product.price,
+        note: "",
+        vat: 10,
+        name: item.product.title.trim(),
+        productCode: item.product.code,
+        unitName: item.product.unitName || "Cái",
+      }));
+
+      // Sử dụng thông tin khách hàng mặc định
+      const finalCustomerName = "Người mua không cung cấp thông tin";
+      const finalCustomerPhone = "0000000000";
+
+      // Tạo request
+      const orderData: any = {
+        id: orderId, // ✅ GUID ID for consistency
+        customerName: finalCustomerName,
+        customerPhone: finalCustomerPhone,
+        products,
+        note: `Auto-created order for table ${tableName}`,
+        paymentMethod: 0,
+        priceIncludeVAT: true,
+        discountType: 0,
+        discount: 0,
+        discountVAT: 0,
+        orderCustomerName: finalCustomerName,
+        orderCustomerPhone: finalCustomerPhone,
+        isDelivery: false,
+        tableId: tableId,
+        debt: {
+          debit: 0,
+          debitExpire: new Date().toISOString(),
+        },
+        delivery: {
+          deliveryId: 0,
+          deliveryName: "",
+          deliveryCode: "",
+          deliveryFee: 0,
+          cod: false,
+        },
+        flashSales: [],
+      };
+
+      const response = await ordersService.createOrder(orderData);
+
+      if (response.successful && response.data) {
+        const orderId = response.data.id;
+        console.log(`✅ Auto-created order ${response.data.code} for table ${tableName}`);
+        
+        // Hiển thị toast thông báo tự động lưu thành công
+        showAutoSaveOrderToast(tableName, response.data.code);
+        
+        // Force refresh areas để cập nhật trạng thái bàn ngay lập tức
+        console.log("🔄 Force refreshing areas after auto-order creation");
+        await refreshAreas();
+        
+        // Thêm delay nhỏ để đảm bảo UI được cập nhật mượt mà
+        await new Promise(resolve => setTimeout(resolve, 100));
+        
+        return orderId;
+      } else {
+        throw new Error(response.error || "Không thể tạo đơn hàng tự động");
+      }
+    } catch (error: any) {
+      console.error(`❌ Error auto-creating order for table ${tableName}:`, error);
+      
+      // ✅ KHÔI PHỤC FALLBACK: Nếu tạo đơn hàng thất bại, lưu vào draft
+      console.log(`🔄 Fallback: Saving as draft order for table ${tableName}`);
+      await saveDraftOrder(tableId, tableName, items);
+      
+      // Hiển thị toast thông báo lưu draft
+      showAutoSaveFailedToast(tableName);
+      
+      return null;
+    }
+  };
+
+  /**
+   * Load order thực từ API cho bàn có khách (status = 1)
+   * Không dùng cho bàn trống vì bàn trống sẽ load draft order
+   */
+  const loadOrderFromAPIForOccupiedTable = async (tableId: string, tableName: string): Promise<OrderItem[]> => {
+    try {
+      console.log(`🔍 Loading existing order for occupied table ${tableName} (${tableId})`);
+      
+      // Tìm bàn trong areas data để lấy thông tin order
+      const targetTable = areas.find(area => 
+        area.tables.some(table => table.id === tableId)
+      )?.tables.find(table => table.id === tableId);
+      
+      if (targetTable?.order) {
+        console.log(`📋 Found order ${targetTable.order.code} for table ${tableName}`);
+        
+        // Convert order products to OrderItem format
+        const orderItems: OrderItem[] = targetTable.order.products?.map((product: any) => ({
+          id: product.id,
+          title: product.name,
+          price: product.price,
+          quantity: product.quantity,
+          product: {
+            id: product.id,
+            title: product.name,
+            code: product.id, // Fallback to id if no code
+            categoryId: "",
+            categoryName: "",
+            price: product.price,
+            priceAfterDiscount: product.price,
+            discount: 0,
+            discountType: 0,
+            unitName: product.unit?.name || "Cái",
+            isActive: true,
+            isPublished: true,
+            categoryOutputMethod: 0
+          }
+        })) || [];
+        
+        return orderItems;
+      }
+      
+      console.log(`ℹ️ No order found for table ${tableName}`);
+      return [];
+      
+    } catch (error) {
+      console.error(`❌ Error loading order for table ${tableName}:`, error);
+      return [];
+    }
+  };
 
   useEffect(() => {
     loadInitialData();
@@ -402,92 +668,118 @@ export default function HomeScreen() {
     // TODO: Show product details modal
   };
 
-  const handleTablePress = (table: Table, areaName?: string) => {
+  const handleTablePress = async (table: Table, areaName?: string) => {
     console.log("🍽️ Table pressed:", table.name, "in area:", areaName);
+    setSavingDraft(true);
 
-    // Thêm thông tin areaName vào table object
-    const tableWithArea = {
-      ...table,
-      areaName: areaName,
-    } as Table & { areaName?: string };
+    try {
+      // Thêm thông tin areaName vào table object
+      const tableWithArea = {
+        ...table,
+        areaName: areaName,
+      } as Table & { areaName?: string };
 
-    // COMMENTED: Table transfer logic
-    // Nếu đang có món trong giỏ hàng và chọn bàn khác
-    // if (
-    //   orderItems.length > 0 &&
-    //   selectedTableForOrder &&
-    //   selectedTableForOrder.id !== table.id
-    // ) {
-    //   // Kiểm tra nếu bàn đích đã có order (status = 1)
-    //   if (table.status === 1) {
-    //     // Bàn đã có order - clear món hiện tại và chuyển sang bàn mới
-    //     Alert.alert(
-    //       "Chuyển sang bàn đã có đơn hàng",
-    //       `Bàn ${table.name} đã có đơn hàng. Các món đang chọn sẽ bị xóa và hiển thị thông tin đơn hàng của bàn này.`,
-    //       [
-    //         { text: "Hủy", style: "cancel" },
-    //         {
-    //           text: "Chuyển sang bàn",
-    //           onPress: () => {
-    //             // Clear order items hiện tại
-    //             setOrderItems([]);
-    //             // Chọn bàn mới với thông tin area
-    //             setSelectedTable(tableWithArea);
-    //             setSelectedTableForOrder(tableWithArea);
-    //             // Load thông tin đơn hàng của bàn mới
-    //             if (table.order?.id) {
-    //               loadTableOrder(table.order.id);
-    //             }
-    //             console.log(
-    //               `🔄 Switched to occupied table ${table.name}, cleared current order items`
-    //             );
-    //           },
-    //         },
-    //       ]
-    //     );
-    //     return;
-    //   } else {
-    //     // Bàn trống - hiển thị thông báo chuyển bàn trống
-    //     Alert.alert(
-    //       "Chuyển bàn",
-    //       `Bạn có muốn chuyển ${orderItems.length} món từ ${selectedTableForOrder.name} sang ${table.name}?`,
-    //       [
-    //         { text: "Hủy", style: "cancel" },
-    //         {
-    //           text: "Chuyển bàn",
-    //           onPress: () => {
-    //             setSelectedTable(tableWithArea);
-    //             setSelectedTableForOrder(tableWithArea);
-    //             // Clear selectedOrder khi chuyển sang bàn trống
-    //             setSelectedOrder(undefined);
-    //             console.log(
-    //               `🔄 Moved ${orderItems.length} items from ${selectedTableForOrder.name} to ${table.name}`
-    //             );
-    //           },
-    //         },
-    //       ]
-    //     );
-    //     return;
-    //   }
-    // }
-
-    setSelectedTable(tableWithArea);
-    setSelectedTableForOrder(tableWithArea);
-
-    if (table.status === 0) {
-      // Bàn trống - clear selectedOrder để không hiển thị thông tin đơn hàng cũ
-      setSelectedOrder(undefined);
-      // Chuyển thẳng sang tab Menu nếu chưa có món, hoặc hiển thị bottom sheet
-      if (orderItems.length === 0) {
-        setActiveTab(TabType.MENU);
+      // BƯỚC 1: Xử lý tự động tạo đơn hàng dựa trên trạng thái bàn hiện tại
+      if (selectedTableForOrder && orderItems.length > 0) {
+        // ✅ Kiểm tra trạng thái bàn hiện tại
+        if (selectedTableForOrder.status === 0) {
+          // Bàn trống có món → TỰ ĐỘNG tạo order
+          console.log(`🚀 Auto-creating order for empty table: ${selectedTableForOrder.name} with ${orderItems.length} items`);
+          
+          const orderId = await autoCreateOrderInDB(
+            selectedTableForOrder.id,
+            selectedTableForOrder.name,
+            orderItems
+          );
+          
+          if (orderId) {
+            console.log(`✅ Successfully created order for empty table: ${selectedTableForOrder.name}`);
+            // Clear draft order sau khi tạo thành công
+            clearDraftOrder(selectedTableForOrder.id, selectedTableForOrder.name);
+            
+            // Force refresh areas để hiển thị ngay đơn hàng vừa tạo
+            console.log("🔄 Force refreshing areas after successful auto-order creation in table switch");
+            await refreshAreas();
+            
+            // Chuyển về tab Tables để hiển thị trạng thái bàn đã cập nhật
+            setActiveTab(TabType.TABLES);
+          } else {
+            // ❌ Nếu thất bại, hiển thị lỗi và không chuyển bàn
+            Alert.alert(
+              "Lỗi tạo đơn hàng", 
+              `Không thể tạo đơn hàng cho bàn ${selectedTableForOrder.name}. Vui lòng thử lại hoặc tạo đơn hàng thủ công.`,
+              [{ text: "OK" }]
+            );
+            setSavingDraft(false);
+            return; // Không chuyển bàn nếu không tạo được order
+          }
+        } else {
+          // Bàn có khách có order → KHÔNG tự động tạo order, chỉ chuyển bàn
+          console.log(`🔄 Switching from occupied table ${selectedTableForOrder.name} with existing order - no auto creation`);
+          
+          // Clear draft order của bàn cũ (nếu có)
+          if (hasDraftOrder(selectedTableForOrder.id)) {
+            clearDraftOrder(selectedTableForOrder.id, selectedTableForOrder.name);
+            console.log(`🗑️ Cleared draft order for occupied table: ${selectedTableForOrder.name}`);
+          }
+        }
       }
-      // Bottom sheet sẽ tự động hiển thị nếu có món
-    } else {
-      // Bàn có khách - load order detail từ API
-      if (table.order?.id) {
-        loadTableOrder(table.order.id);
+
+      // BƯỚC 2: Set bàn mới được chọn
+      setSelectedTable(tableWithArea);
+      setSelectedTableForOrder(tableWithArea);
+
+      // BƯỚC 3: Xử lý theo trạng thái bàn
+      if (table.status === 0) {
+        // Bàn trống - load draft order (nếu có) hoặc tạo order mới
+        setSelectedOrder(undefined);
+        
+        // ✅ KHÔI PHỤC: Load draft order của bàn mới (nếu có)
+        const draftItems = loadDraftOrder(table.id);
+        if (draftItems.length > 0) {
+          setOrderItems(draftItems);
+          console.log(`📋 Loaded ${draftItems.length} items from draft order for table ${table.name}`);
+          
+          // Hiển thị thông báo có draft order
+          // Alert.alert(
+          //   "Đơn hàng nháp",
+          //   `Bàn ${table.name} có ${draftItems.length} món trong đơn hàng nháp. Bạn có thể tiếp tục chỉnh sửa hoặc tạo đơn hàng mới.`,
+          //   [{ text: "Đã hiểu" }]
+          // );
+        } else {
+          // Không có draft order - clear orderItems và tạo order mới
+          setOrderItems([]);
+          console.log(`🆕 Empty table ${table.name} selected - no draft order found, creating new order`);
+        }
+        
+        // Chuyển thẳng sang tab Menu nếu chưa có món
+        if (draftItems.length === 0) {
+          setActiveTab(TabType.MENU);
+        }
+      } else {
+        // Bàn có khách - clear draft order (nếu có) và load order hiện tại
+        if (hasDraftOrder(table.id)) {
+          clearDraftOrder(table.id, table.name);
+          console.log(`🗑️ Cleared draft order for occupied table ${table.name}`);
+        }
+        
+        // Load order hiện tại của bàn từ areas data
+        const existingOrderItems = await loadOrderFromAPIForOccupiedTable(table.id, table.name);
+        setOrderItems(existingOrderItems);
+        
+        // Set selectedOrder để hiển thị thông tin đơn hàng
+        if (table.order?.id) {
+          loadTableOrder(table.order.id);
+        }
       }
-      // Bottom sheet sẽ hiển thị thông tin bàn và đơn hàng
+
+      console.log(`✅ Successfully switched to table ${table.name} (${table.status === 0 ? 'empty' : 'occupied'})`);
+      
+    } catch (error) {
+      console.error("❌ Error in handleTablePress:", error);
+      Alert.alert("Lỗi", "Có lỗi xảy ra khi chuyển bàn. Vui lòng thử lại.");
+    } finally {
+      setSavingDraft(false);
     }
   };
 
@@ -522,94 +814,28 @@ export default function HomeScreen() {
       shouldOpenPayment
     );
 
+    // Clear draft order của bàn hiện tại (nếu có)
+    if (selectedTableForOrder) {
+      clearDraftOrder(selectedTableForOrder.id, selectedTableForOrder.name);
+      console.log(`🗑️ Cleared draft order after successful order creation for table ${selectedTableForOrder.name}`);
+    }
+
     // Clear selected table và order items
     setSelectedTableForOrder(null);
     setSelectedTable(null);
     setOrderItems([]);
     setUnifiedOrderModalVisible(false);
 
-    // Refresh areas ngay lập tức để cập nhật trạng thái bàn
-    console.log("🔄 Refreshing areas/tables data after order creation");
-    loadAreas();
+    // Force refresh areas ngay lập tức để cập nhật trạng thái bàn
+    console.log("🔄 Force refreshing areas/tables data after manual order creation");
+    refreshAreas();
 
     if (shouldOpenPayment) {
-      // Luồng mới: Thử load order detail, nếu lỗi thì fallback về tab Orders
-      setTimeout(async () => {
-        // Luồng mới: Tìm đơn hàng mới trong danh sách và tự động mở thanh toán
-        console.log(
-          "🔄 Chuyển về tab Orders và tìm đơn hàng mới để auto thanh toán"
-        );
-
-        // Chuyển về tab Orders
+      setTimeout(() => {
         setActiveTab(TabType.ORDERS);
-
-        // Refresh để load đơn hàng mới
         onRefresh();
-
-        // Đợi để Orders load xong, sau đó tự động tìm và mở đơn hàng mới
-        setTimeout(async () => {
-          try {
-            // Lấy danh sách đơn hàng mới
-            const newOrders = await ordersService.getNewOrders({
-              pageNumber: 1,
-              pageSize: 20,
-              searchTerm: "",
-              fromDate: "",
-              toDate: "",
-            });
-
-            console.log("📋 New orders loaded:", newOrders.items.length);
-
-            // Tìm đơn hàng với code khớp với orderId hoặc đơn hàng mới nhất
-            let targetOrder = newOrders.items.find(
-              (order) =>
-                order.code === orderId.toString() ||
-                order.code.includes(orderId.toString())
-            );
-
-            // Nếu không tìm thấy theo code, lấy đơn hàng mới nhất
-            if (!targetOrder && newOrders.items.length > 0) {
-              // Sắp xếp theo ngày tạo giảm dần và lấy đơn mới nhất
-              const sortedOrders = [...newOrders.items].sort(
-                (a, b) =>
-                  new Date(b.date).getTime() - new Date(a.date).getTime()
-              );
-              targetOrder = sortedOrders[0];
-              console.log(
-                "📋 Using latest order as fallback:",
-                targetOrder.code
-              );
-            }
-
-            if (targetOrder) {
-              console.log("✅ Found target order:", targetOrder.code);
-
-              // Set selected order và mở modal chi tiết với auto payment
-              setSelectedOrder(targetOrder);
-              setAutoOpenPaymentForNewOrder(true);
-              setUnifiedOrderModalVisible(true);
-
-              console.log(
-                "🚀 Auto opening order detail with payment for:",
-                targetOrder.code
-              );
-            } else {
-              throw new Error("Không tìm thấy đơn hàng mới");
-            }
-          } catch (error) {
-            console.error("❌ Error finding new order:", error);
-
-            // Fallback: hiển thị alert như cũ
-            Alert.alert(
-              "Đã tạo đơn hàng thành công!",
-              `Đơn hàng #${orderId} đã được tạo và in chế biến. Vui lòng tìm đơn hàng trong tab "Đơn hàng" và bấm "Chi tiết" để thanh toán.`,
-              [{ text: "OK" }]
-            );
-          }
-        }, 1500); // Tăng thời gian đợi để đảm bảo Orders load xong
       }, 300);
     } else {
-      // Luồng cũ: chuyển về tab Đơn hàng
       setTimeout(() => {
         setActiveTab(TabType.ORDERS);
         onRefresh();
@@ -618,37 +844,31 @@ export default function HomeScreen() {
   };
 
   const handleClearOrder = () => {
+    // Clear draft order của bàn hiện tại (nếu có)
+    if (selectedTableForOrder) {
+      clearDraftOrder(selectedTableForOrder.id, selectedTableForOrder.name);
+      console.log(`🗑️ Cleared draft order for table ${selectedTableForOrder.name}`);
+    }
+    
     setOrderItems([]);
     setSelectedTableForOrder(null);
     setSelectedTable(null);
     setSelectedOrder(undefined);
-    console.log("🗑️ Order items cleared - including selectedOrder");
+    console.log("🗑️ Order items cleared - including selectedOrder and draft orders");
   };
 
   const handleViewOrder = (table: Table) => {
     console.log("👁️ View order for table:", table.name);
-
-    // Mở UnifiedOrderModal thay vì hiển thị thông báo Alert
     setUnifiedOrderModalVisible(true);
   };
 
   const handleOrderPress = (order: OrderListItem) => {
     console.log("📋 Order pressed:", order.code);
-
-    // Clear order items hiện tại để tránh conflict
     setOrderItems([]);
-
-    // Set selected order để hiển thị trong OrderBottomSheet
     setSelectedOrder(order);
-
-    // Clear selectedTable và selectedTableForOrder vì đang xem đơn hàng riêng lẻ
     setSelectedTable(null);
     setSelectedTableForOrder(null);
-
-    // Không mở modal ngay, để user có thể chọn xem chi tiết hoặc thêm món
-    console.log(
-      "📋 Order loaded to bottom sheet. User can view details or add items."
-    );
+    console.log("📋 Order loaded to bottom sheet.");
   };
 
   const handleMenuPress = () => {
@@ -660,14 +880,8 @@ export default function HomeScreen() {
       "Quay lại trang chính",
       "Bạn có muốn quay lại trang chính không?",
       [
-        {
-          text: "Hủy",
-          style: "cancel",
-        },
-        {
-          text: "Quay lại",
-          onPress: () => router.replace("/main"),
-        },
+        { text: "Hủy", style: "cancel" },
+        { text: "Quay lại", onPress: () => router.replace("/main") },
       ]
     );
   };
@@ -678,185 +892,68 @@ export default function HomeScreen() {
 
   const onRefresh = async () => {
     setRefreshing(true);
-
     if (activeTab === TabType.TABLES) {
-      await refreshAreas(); // Use hook's refresh method
+      await refreshAreas();
     } else if (activeTab === TabType.MENU) {
       await Promise.all([loadCategories(), loadAllProducts()]);
     } else if (activeTab === TabType.ORDERS) {
-      // Trigger refresh OrdersView
-      console.log("🔄 Refreshing orders data");
       setOrdersRefreshTrigger((prev) => prev + 1);
     }
-
     setRefreshing(false);
   };
 
   const onRefreshAreas = async () => {
-    await refreshAreas(); // Use hook's refresh method
+    console.log("🔄 Manual refresh of areas requested");
+    await refreshAreas();
   };
 
   const handleAddToOrder = async (product: Product) => {
     const currentPrice = product.priceAfterDiscount || product.price;
 
-    // Nếu có selectedOrder, thêm sản phẩm vào đơn hàng hiện có thông qua API
     if (selectedOrder) {
+      // Logic thêm vào đơn hàng hiện có
       try {
-        console.log(
-          "➕ Adding product to existing order:",
-          selectedOrder.code,
-          product.title
-        );
-
-        // Kiểm tra trạng thái đơn hàng trước khi thêm sản phẩm
-        const orderDetail = await ordersService.getOrderDetail(
-          selectedOrder.id
-        );
+        const orderDetail = await ordersService.getOrderDetail(selectedOrder.id);
         const canAddResult = ordersService.canAddProductToOrder(orderDetail);
 
         if (!canAddResult.canAdd) {
-          Alert.alert(
-            "Không thể thêm sản phẩm",
-            canAddResult.reason || "Đơn hàng không hợp lệ"
-          );
+          Alert.alert("Không thể thêm sản phẩm", canAddResult.reason || "Đơn hàng không hợp lệ");
           return;
         }
 
-        // Kiểm tra xem sản phẩm đã tồn tại trong đơn hàng chưa
-        const existingProduct = orderDetail.products?.find(
-          (p) => p.productName === product.title
-        );
+        await ordersService.addProductToOrder(selectedOrder.id, {
+          productId: product.id,
+          quantity: 1,
+          price: product.price,
+          priceIncludeVAT: currentPrice,
+          unitName: product.unitName || "Cái",
+          vat: 10,
+          name: product.title.trim(),
+          productCode: product.code,
+        });
 
-        // Chuẩn bị danh sách sản phẩm cập nhật
-        let updatedProducts;
-
-        if (existingProduct) {
-          // Nếu sản phẩm đã tồn tại, hỏi user có muốn tăng số lượng không
-          const shouldIncrease = await new Promise<boolean>((resolve) => {
-            Alert.alert(
-              "Sản phẩm đã tồn tại",
-              `${product.title} đã có trong đơn hàng (số lượng: ${existingProduct.quantity}). Bạn có muốn tăng số lượng không?`,
-              [
-                { text: "Hủy", style: "cancel", onPress: () => resolve(false) },
-                { text: "Tăng số lượng", onPress: () => resolve(true) },
-              ]
-            );
-          });
-
-          if (!shouldIncrease) return;
-
-          // Tăng số lượng sản phẩm hiện có
-          updatedProducts = orderDetail.products!.map((p) => ({
-            productId: p.id,
-            quantity:
-              p.productName === product.title ? p.quantity + 1 : p.quantity,
-            price: p.price,
-            priceIncludeVAT: p.priceIncludeVAT,
-            unitName: product.unitName || "Cái",
-            vat: 10,
-            name: p.productName || "Sản phẩm",
-            productCode: p.id.substring(0, 8) || "",
-          }));
-
-          console.log("📈 Increasing quantity for existing product");
-        } else {
-          // Nếu sản phẩm chưa tồn tại, thêm vào cuối danh sách
-          const existingProducts =
-            orderDetail.products?.map((p) => ({
-              productId: p.id,
-              quantity: p.quantity,
-              price: p.price,
-              priceIncludeVAT: p.priceIncludeVAT,
-              unitName: product.unitName || "Cái",
-              vat: 10,
-              name: p.productName || "Sản phẩm",
-              productCode: p.id.substring(0, 8) || "",
-            })) || [];
-
-          const newProduct = {
-            productId: product.id,
-            quantity: 1,
-            price: product.price,
-            priceIncludeVAT: currentPrice,
-            unitName: product.unitName || "Cái",
-            vat: 10,
-            name: product.title || "Sản phẩm mới",
-            productCode: product.code || "",
-          };
-
-          updatedProducts = [...existingProducts, newProduct];
-          console.log("➕ Adding new product to order");
-        }
-
-        if (existingProduct) {
-          // Nếu là tăng số lượng sản phẩm hiện có, sử dụng updateProductQuantityInOrder
-          console.log(
-            "📈 Updating quantity for existing product via updateProductQuantityInOrder"
-          );
-          await ordersService.updateProductQuantityInOrder(
-            selectedOrder.id,
-            existingProduct.id,
-            existingProduct.quantity + 1
-          );
-          console.log("✅ Product quantity updated successfully");
-        } else {
-          // Nếu là thêm sản phẩm mới, chỉ cần gọi addProductToOrder cho sản phẩm mới
-          console.log("➕ Adding only new product via addProductToOrder");
-          await ordersService.addProductToOrder(selectedOrder.id, {
-            productId: product.id,
-            quantity: 1,
-            price: product.price,
-            priceIncludeVAT: currentPrice,
-            unitName: product.unitName || "Cái",
-            vat: 10,
-            name: product.title.trim(), // Thêm tên sản phẩm từ trường title và trim khoảng trắng
-            productCode: product.code, // Sử dụng mã sản phẩm thực từ trường code
-          });
-        }
-
-        // Clear orderItems để tránh hiển thị view order mới song song
         setOrderItems([]);
-        console.log("🗑️ Cleared orderItems to avoid duplicate display");
-
-        // const message = existingProduct
-        //   ? `Đã tăng số lượng ${product.title} lên ${
-        //       existingProduct.quantity + 1
-        //     }`
-        //   : `Đã thêm ${product.title} vào đơn hàng ${selectedOrder.code}`;
-
-        // Trigger reload orderDetail để cập nhật hiển thị ngay sau khi API thành công
         setOrderDetailRefreshTrigger((prev) => prev + 1);
-        console.log("🔄 Triggered orderDetail refresh");
-
-        // Hiển thị một toast message để thông báo thêm sản phẩm thành công, toast sẽ mất sau 2s
         showAddProductToast(product);
-
-        // Alert.alert("Thành công", message);
-        console.log("✅ Product updated in existing order successfully");
       } catch (error: any) {
         console.error("❌ Error adding product to existing order:", error);
-        Alert.alert(
-          "Lỗi",
-          error.message || "Không thể thêm sản phẩm vào đơn hàng"
-        );
+        Alert.alert("Lỗi", error.message || "Không thể thêm sản phẩm vào đơn hàng");
       }
       return;
     }
 
-    // Logic cũ: thêm vào orderItems cho đơn hàng mới
+    // Logic thêm vào đơn hàng mới
     setOrderItems((prevItems) => {
       const existingItem = prevItems.find((item) => item.id === product.id);
-
+      let newItems;
       if (existingItem) {
-        // Increase quantity if item already exists
-        return prevItems.map((item) =>
+        newItems = prevItems.map((item) =>
           item.id === product.id
             ? { ...item, quantity: item.quantity + 1 }
             : item
         );
       } else {
-        // Add new item
-        return [
+        newItems = [
           ...prevItems,
           {
             id: product.id,
@@ -867,46 +964,63 @@ export default function HomeScreen() {
           },
         ];
       }
+      
+      // ✅ KHÔI PHỤC AUTO-SAVE DRAFT ORDER cho bàn mới
+      // Chỉ save draft cho bàn trống (status = 0)
+      if (selectedTableForOrder && selectedTableForOrder.status === 0) {
+        setTimeout(() => {
+          saveDraftOrder(selectedTableForOrder.id, selectedTableForOrder.name, newItems);
+        }, 0);
+        console.log(`💾 Auto-saved draft order for empty table: ${selectedTableForOrder.name}`);
+      } else {
+        console.log(`🛒 Updated order items for table ${selectedTableForOrder?.name || 'unknown'} - no auto-save (occupied table)`);
+      }
+      
+      return newItems;
     });
 
     console.log("🛒 Added to order:", product.title);
-
-    // Nếu chưa có bàn được chọn, hiển thị thông báo gợi ý
-    // if (!selectedTableForOrder && orderItems.length === 0) {
-    //   setTimeout(() => {
-    //     Alert.alert(
-    //       "Gợi ý",
-    //       "Bạn có thể chọn bàn để gán đơn hàng này, hoặc tiếp tục thêm món và tạo đơn hàng không cần bàn.",
-    //       [{ text: "Đã hiểu" }]
-    //     );
-    //   }, 500);
-    // }
   };
 
   const handleUpdateQuantity = (itemId: string, newQuantity: number) => {
-    console.log("🏠 HomeScreen handleUpdateQuantity called with:", {
-      itemId,
-      newQuantity,
-    });
-    console.log(
-      "🏠 Current selectedOrder:",
-      selectedOrder ? selectedOrder.id : "none"
-    );
-
     if (newQuantity <= 0) {
       handleRemoveItem(itemId);
     } else {
-      setOrderItems((prevItems) =>
-        prevItems.map((item) =>
+      setOrderItems((prevItems) => {
+        const newItems = prevItems.map((item) =>
           item.id === itemId ? { ...item, quantity: newQuantity } : item
-        )
-      );
+        );
+        
+        // ✅ KHÔI PHỤC AUTO-SAVE DRAFT ORDER cho bàn trống
+        if (selectedTableForOrder && selectedTableForOrder.status === 0) {
+          setTimeout(() => {
+            saveDraftOrder(selectedTableForOrder.id, selectedTableForOrder.name, newItems);
+          }, 0);
+          console.log(`💾 Auto-saved draft order for empty table: ${selectedTableForOrder.name}`);
+        } else {
+          console.log(`📝 Updated quantity for table ${selectedTableForOrder?.name || 'unknown'} - no auto-save (occupied table)`);
+        }
+        
+        return newItems;
+      });
     }
   };
 
   const handleRemoveItem = (itemId: string) => {
     setOrderItems((prevItems) => {
-      return prevItems.filter((item) => item.id !== itemId);
+      const newItems = prevItems.filter((item) => item.id !== itemId);
+      
+      // ✅ KHÔI PHỤC AUTO-SAVE DRAFT ORDER cho bàn trống
+      if (selectedTableForOrder && selectedTableForOrder.status === 0) {
+        setTimeout(() => {
+          saveDraftOrder(selectedTableForOrder.id, selectedTableForOrder.name, newItems);
+        }, 0);
+        console.log(`💾 Auto-saved draft order for empty table: ${selectedTableForOrder.name}`);
+      } else {
+        console.log(`🗑️ Removed item from table ${selectedTableForOrder?.name || 'unknown'} - no auto-save (occupied table)`);
+      }
+      
+      return newItems;
     });
   };
 
@@ -921,47 +1035,28 @@ export default function HomeScreen() {
   };
 
   const handleTabChange = (tab: TabType) => {
-    // Keep selected table and order items persistent across tabs
-    console.log(
-      "🔄 Tab change:",
-      tab,
-      "| Selected table:",
-      selectedTable?.name,
-      "| Selected table for order:",
-      selectedTableForOrder?.name,
-      "| Order items:",
-      orderItems.length
-    );
-
+    console.log("🔄 Tab change:", tab);
     setActiveTab(tab);
-
-    // Load areas when switching to Tables tab (with caching)
     if (tab === TabType.TABLES) {
-      console.log("🔄 Loading areas when switching to Tables tab");
-      loadAreas(); // Will use cache if data is fresh
+      loadAreas();
     }
   };
 
-  // Xác định đơn hàng nào sẽ hiển thị trong UnifiedOrderModal
   const modalOrderItems = React.useMemo(() => {
     if (selectedOrder) {
-      // Nếu có selectedOrder (từ bàn hoặc từ tab Orders), UnifiedOrderModal sẽ tự load data
-      return []; // Trả về array rỗng vì UnifiedOrderModal sẽ load từ API
+      return [];
     } else {
-      return orderItems; // Hiển thị đơn hàng đang tạo mới
+      return orderItems;
     }
   }, [selectedOrder, orderItems]);
 
-  // Xác định trạng thái thanh toán cho modal
   const modalIsPaid = React.useMemo(() => {
     if (selectedOrder) {
-      // Trạng thái thanh toán sẽ được xác định trong UnifiedOrderModal dựa vào orderDetail
-      return false; // UnifiedOrderModal sẽ tự kiểm tra receiveDate
+      return false;
     }
     return false;
   }, [selectedOrder]);
 
-  // Xác định tiêu đề cho modal
   const modalTitle = React.useMemo(() => {
     if (selectedOrder && selectedTable?.status === 1) {
       return `Chi tiết đơn - ${selectedTable.name}`;
@@ -974,71 +1069,25 @@ export default function HomeScreen() {
   const handleCloseUnifiedModal = () => {
     setUnifiedOrderModalVisible(false);
     setAutoOpenPaymentForNewOrder(false);
-
-    // Chỉ clear selectedOrder nếu đang ở tab Orders (không có selectedTable)
-    // Nếu đang ở tab Tables và chọn bàn, giữ selectedOrder để OrderBottomSheet hiển thị
     if (!selectedTable) {
       setSelectedOrder(undefined);
     }
   };
 
-  /**
-   * LUỒNG MỚI TỐI ƯU: Xử lý thanh toán trực tiếp với thông tin tạm
-   * Được gọi từ UnifiedOrderModal khi sử dụng handleOptimizedPaymentFlow
-   */
   const handleDirectPayment = (orderData: TempOrderData) => {
     console.log("🚀 Nhận thông tin đơn hàng tạm để thanh toán:", orderData);
-
-    // Lưu thông tin đơn hàng tạm
     setTempOrderData(orderData);
-
-    // Mở PaymentModal trực tiếp
     setPaymentModalVisible(true);
-
-    console.log("✅ Đã mở màn hình thanh toán với thông tin tạm");
   };
 
-  /**
-   * Xử lý khi thanh toán hoàn tất (dành cho luồng mới)
-   */
   const handlePaymentComplete = async (paymentData: PaymentData) => {
     try {
       if (tempOrderData?.orderId) {
-        // Nếu đã có orderId, gọi API thanh toán
-        console.log("💰 Đang thanh toán đơn hàng:", tempOrderData.orderId);
         await ordersService.receiveOrder(tempOrderData.orderId);
-
-        Alert.alert(
-          "Thành công",
-          `Đã thanh toán đơn hàng\nTiền khách trả: ${paymentData.customerPaid.toLocaleString(
-            "vi-VN"
-          )}\nTiền thối lại: ${Math.abs(paymentData.change).toLocaleString(
-            "vi-VN"
-          )}`
-        );
-
-        // Đóng modal và refresh data
+        Alert.alert("Thành công", "Đã thanh toán đơn hàng");
         setPaymentModalVisible(false);
         setTempOrderData(null);
         onRefresh();
-
-        console.log("✅ Thanh toán hoàn tất thành công");
-      } else {
-        // Nếu chưa có orderId, chờ order được tạo xong
-        console.log("⏳ Đang chờ đơn hàng được tạo...");
-        Alert.alert(
-          "Đang xử lý",
-          "Đơn hàng đang được tạo. Vui lòng đợi trong giây lát...",
-          [
-            {
-              text: "OK",
-              onPress: () => {
-                setPaymentModalVisible(false);
-                setTempOrderData(null);
-              },
-            },
-          ]
-        );
       }
     } catch (error: any) {
       console.error("❌ Lỗi khi thanh toán:", error);
@@ -1046,7 +1095,6 @@ export default function HomeScreen() {
     }
   };
 
-  // Render các tab
   const renderTabContent = () => {
     switch (activeTab) {
       case TabType.TABLES:
@@ -1064,7 +1112,6 @@ export default function HomeScreen() {
       case TabType.MENU:
         return (
           <View style={styles.menuSection}>
-            {/* Product List */}
             <AllCategoriesProductList
               categories={categories}
               allProducts={allProducts}
@@ -1080,8 +1127,6 @@ export default function HomeScreen() {
               onUpdateQuantity={handleUpdateQuantity}
               onCategoryPress={() => setCategoryBottomSheetVisible(true)}
             />
-
-            {/* Category Bottom Sheet */}
             <CategoryBottomSheet
               visible={categoryBottomSheetVisible}
               onClose={() => setCategoryBottomSheetVisible(false)}
@@ -1107,19 +1152,11 @@ export default function HomeScreen() {
   return (
     <SafeAreaView style={styles.safeArea} edges={["left", "right"]}>
       <View style={styles.container}>
-        {/* AppBar */}
-        <AppBar
-          onMenuPress={handleMenuPress}
-          onReloadPress={handleReloadPress}
-        />
-
-        {/* Tab Navigation */}
+        <AppBar onMenuPress={handleMenuPress} onReloadPress={handleReloadPress} />
+        
         <View style={styles.tabBar}>
           <TouchableOpacity
-            style={[
-              styles.tabButton,
-              activeTab === TabType.TABLES && styles.activeTabButton,
-            ]}
+            style={[styles.tabButton, activeTab === TabType.TABLES && styles.activeTabButton]}
             onPress={() => handleTabChange(TabType.TABLES)}
           >
             <Ionicons
@@ -1128,21 +1165,13 @@ export default function HomeScreen() {
               color={activeTab === TabType.TABLES ? "#198754" : "#666"}
               style={styles.tabIcon}
             />
-            <Text
-              style={[
-                styles.tabButtonText,
-                activeTab === TabType.TABLES && styles.activeTabButtonText,
-              ]}
-            >
+            <Text style={[styles.tabButtonText, activeTab === TabType.TABLES && styles.activeTabButtonText]}>
               Khu vực - Bàn
             </Text>
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={[
-              styles.tabButton,
-              activeTab === TabType.MENU && styles.activeTabButton,
-            ]}
+            style={[styles.tabButton, activeTab === TabType.MENU && styles.activeTabButton]}
             onPress={() => handleTabChange(TabType.MENU)}
           >
             <Ionicons
@@ -1151,21 +1180,13 @@ export default function HomeScreen() {
               color={activeTab === TabType.MENU ? "#198754" : "#666"}
               style={styles.tabIcon}
             />
-            <Text
-              style={[
-                styles.tabButtonText,
-                activeTab === TabType.MENU && styles.activeTabButtonText,
-              ]}
-            >
+            <Text style={[styles.tabButtonText, activeTab === TabType.MENU && styles.activeTabButtonText]}>
               Thực đơn
             </Text>
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={[
-              styles.tabButton,
-              activeTab === TabType.ORDERS && styles.activeTabButton,
-            ]}
+            style={[styles.tabButton, activeTab === TabType.ORDERS && styles.activeTabButton]}
             onPress={() => handleTabChange(TabType.ORDERS)}
           >
             <Ionicons
@@ -1174,42 +1195,32 @@ export default function HomeScreen() {
               color={activeTab === TabType.ORDERS ? "#198754" : "#666"}
               style={styles.tabIcon}
             />
-            <Text
-              style={[
-                styles.tabButtonText,
-                activeTab === TabType.ORDERS && styles.activeTabButtonText,
-              ]}
-            >
+            <Text style={[styles.tabButtonText, activeTab === TabType.ORDERS && styles.activeTabButtonText]}>
               Đơn hàng
             </Text>
           </TouchableOpacity>
         </View>
 
-        {/* Main Content */}
         <View style={styles.content}>{renderTabContent()}</View>
 
-        {/* Drawer Menu */}
         <DrawerMenu
           visible={drawerVisible}
           onClose={handleDrawerClose}
           userInfo={userInfo}
         />
 
-        {/* Order Bottom Sheet */}
         <OrderBottomSheet
           visible={
-            orderItems.length > 0 || // Có món trong giỏ hàng
-            selectedTable !== null || // Có bàn được chọn (bao gồm cả bàn trống)
-            selectedTableForOrder !== null || // Có bàn cho đơn hàng
-            selectedOrder !== undefined // Đang xem chi tiết đơn hàng
+            orderItems.length > 0 ||
+            selectedTable !== null ||
+            selectedTableForOrder !== null ||
+            selectedOrder !== undefined
           }
           orderItems={orderItems}
           selectedTable={selectedTable || selectedTableForOrder}
           totalAmount={totalAmount}
           onPress={handleBottomSheetPress}
-          isExistingOrder={
-            (selectedTable || selectedTableForOrder)?.status === 1
-          } // Bàn có khách
+          isExistingOrder={(selectedTable || selectedTableForOrder)?.status === 1}
           mode={
             selectedOrder
               ? "view"
@@ -1225,7 +1236,6 @@ export default function HomeScreen() {
           refreshTrigger={orderDetailRefreshTrigger}
         />
 
-        {/* Unified Order Modal for Table and Order Creation */}
         <UnifiedOrderModal
           visible={unifiedOrderModalVisible}
           orderItems={modalOrderItems}
@@ -1245,7 +1255,6 @@ export default function HomeScreen() {
           onDirectPayment={handleDirectPayment}
         />
 
-        {/* Payment Modal cho luồng mới tối ưu */}
         <PaymentModal
           visible={paymentModalVisible}
           totalAmount={tempOrderData?.totalAmount || 0}
@@ -1265,7 +1274,7 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: "#198754", // Màu của AppBar để không có gap
+    backgroundColor: "#198754",
   },
   container: {
     flex: 1,
@@ -1274,28 +1283,10 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
   },
-  contentContainer: {
-    flexGrow: 1,
-    paddingBottom: 20,
-  },
   menuSection: {
     marginTop: 5,
     flex: 1,
   },
-  sectionHeader: {
-    paddingHorizontal: 16,
-    marginBottom: 12,
-  },
-  sectionTitle: {
-    fontSize: 20,
-    fontWeight: "bold",
-    color: "#333",
-    textAlign: "center",
-  },
-  spacer: {
-    height: 50,
-  },
-  // Styles cho tab bar
   tabBar: {
     flexDirection: "row",
     backgroundColor: "#fff",
@@ -1327,51 +1318,6 @@ const styles = StyleSheet.create({
   activeTabButtonText: {
     color: "#198754",
     fontWeight: "bold",
-  },
-  tabContent: {
-    flex: 1,
-    paddingTop: 20,
-    alignItems: "center",
-    justifyContent: "center",
-    minHeight: 300,
-  },
-  placeholderIcon: {
-    marginBottom: 16,
-  },
-  placeholderText: {
-    fontSize: 16,
-    color: "#666",
-    textAlign: "center",
-  },
-  // Styles cho category selector
-  categorySelector: {
-    backgroundColor: "#fff",
-    borderRadius: 8,
-    marginHorizontal: 16,
-    marginVertical: 10,
-    padding: 12,
-    elevation: 2,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-  },
-  categorySelectorContent: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-  categorySelectorTextContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  categorySelectorIcon: {
-    marginRight: 8,
-  },
-  categorySelectorText: {
-    fontSize: 16,
-    fontWeight: "500",
-    color: "#333",
   },
   tabIcon: {
     marginRight: 4,

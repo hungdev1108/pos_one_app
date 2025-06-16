@@ -376,6 +376,7 @@ export interface OrderOperationResponse {
 
 // Order Creation Request
 export interface CreateOrderRequest {
+  id: string; // ✅ GUID ID - bắt buộc để đảm bảo consistency trong luồng thanh toán
   customerName: string;
   customerPhone?: string;
   tableId: string;
@@ -493,6 +494,7 @@ export interface CreateOrderResponse {
     code: string;
     tableId: string;
     createDate: string;
+    apiResponse?: any; // Raw API response for debugging
   };
 } 
 

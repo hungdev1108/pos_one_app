@@ -89,7 +89,7 @@ const MainScreen: React.FC<MainScreenProps> = ({ username = "Daco" }) => {
 
         {/* Welcome Section */}
         <View style={styles.welcomeSection}>
-          <Text style={styles.sparkleIcon}>✨</Text>
+          {/* <Text style={styles.sparkleIcon}>✨</Text> */}
           <Text style={styles.goodDayText}>
             Xin chào, <Text style={styles.usernameText}>{username}</Text>
           </Text>
@@ -110,7 +110,7 @@ const MainScreen: React.FC<MainScreenProps> = ({ username = "Daco" }) => {
             >
               <View style={styles.productIcon}>
                 <Image
-                  source={require("../../assets/images/favicon_new.png")}
+                  source={require("../../assets/images/banhang.png")}
                   style={styles.productIconImage}
                   contentFit="contain"
                   transition={200}
@@ -127,7 +127,7 @@ const MainScreen: React.FC<MainScreenProps> = ({ username = "Daco" }) => {
             >
               <View style={styles.productIcon}>
                 <Image
-                  source={require("../../assets/images/favicon_new.png")}
+                  source={require("../../assets/images/quanly.png")}
                   style={styles.productIconImage}
                   contentFit="contain"
                   transition={200}
@@ -144,7 +144,7 @@ const MainScreen: React.FC<MainScreenProps> = ({ username = "Daco" }) => {
             >
               <View style={styles.productIcon}>
                 <Image
-                  source={require("../../assets/images/favicon_new.png")}
+                  source={require("../../assets/images/kom.png")}
                   style={styles.productIconImage}
                   contentFit="contain"
                   transition={200}
@@ -219,10 +219,10 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   goodDayText: {
-    fontSize: 28,
+    fontSize: isTablet ? 32 : 28,
     color: "#333333",
     textAlign: "center",
-    marginBottom: 8,
+    marginBottom: isTablet ? 12 : 8,
     fontWeight: "400",
   },
   usernameText: {
@@ -230,14 +230,14 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
   },
   welcomeText: {
-    fontSize: 28,
+    fontSize: isTablet ? 32 : 28,
     color: "#333333",
     textAlign: "center",
-    marginBottom: 16,
+    marginBottom: isTablet ? 20 : 16,
     fontWeight: "600",
   },
   subWelcomeText: {
-    fontSize: 16,
+    fontSize: isTablet ? 18 : 16,
     color: "#999999",
     textAlign: "center",
     marginBottom: isTablet ? 20 : 0,
@@ -246,23 +246,25 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    marginBottom: 100,
-    paddingHorizontal: 20,
+    marginBottom: isTablet ? 60 : 100,
+    paddingHorizontal: isTablet ? 40 : 20,
+    marginTop: isTablet ? 10 : 0,
   },
   productGrid: {
     flexDirection: "row",
-    justifyContent: "space-between",
+    justifyContent: "center",
     alignItems: "center",
     width: "100%",
-    gap: 15,
+    gap: isTablet ? 30 : 15,
+    maxWidth: isTablet ? 600 : "100%",
   },
   productCard: {
     flex: 1,
-    height: 100,
-    borderRadius: 20,
+    height: isTablet ? 140 : 100,
+    borderRadius: isTablet ? 24 : 20,
     alignItems: "center",
     justifyContent: "center",
-    padding: 12,
+    padding: isTablet ? 20 : 12,
     shadowColor: "#000",
     shadowOffset: {
       width: 0,
@@ -271,9 +273,11 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 2,
+    minWidth: isTablet ? 160 : "auto",
+    maxWidth: isTablet ? 180 : "auto",
   },
   primaryCard: {
-    backgroundColor: "#5470ff",
+    backgroundColor: "#c6f0e4",
   },
   secondaryCard: {
     backgroundColor: "#ffffff",
@@ -281,18 +285,18 @@ const styles = StyleSheet.create({
     borderColor: "#e5e7eb",
   },
   productIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 10,
-    backgroundColor: "#ffffff",
+    width: isTablet ? 60 : 40,
+    height: isTablet ? 60 : 40,
+    borderRadius: isTablet ? 15 : 10,
+    // backgroundColor: "#ffffff",
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 8,
+    marginBottom: isTablet ? 12 : 8,
   },
   productIconImage: {
-    width: 25,
-    height: 25,
-    padding: 5,
+    width: isTablet ? 60 : 45,
+    height: isTablet ? 60 : 45,
+    padding: isTablet ? 8 : 5,
   },
   productIconText: {
     color: "#1e40af",
@@ -300,18 +304,18 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
   },
   productTitle: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#ffffff",
-    textAlign: "center",
-    marginTop: 5,
-  },
-  productSubTitle: {
-    fontSize: 14,
+    fontSize: isTablet ? 16 : 14,
     fontWeight: "600",
     color: "#333333",
     textAlign: "center",
-    marginTop: 5,
+    marginTop: isTablet ? 8 : 5,
+  },
+  productSubTitle: {
+    fontSize: isTablet ? 16 : 14,
+    fontWeight: "600",
+    color: "#333333",
+    textAlign: "center",
+    marginTop: isTablet ? 8 : 5,
   },
   footer: {
     alignItems: "center",

@@ -533,33 +533,33 @@ class OrdersService {
 
       console.log('✅ Order created successfully:', response);
 
-      // Kiểm tra nếu API trả về ID đơn hàng (number hoặc string)
-      if (response && (typeof response === 'number' || typeof response === 'string')) {
+      // ✅ LUÔN SỬ DỤNG GUID ID TỪ PAYLOAD để đảm bảo consistency
+      // API có thể trả về số sequence (4) nhưng ta cần sử dụng GUID ID để call các API khác
+      const orderId = orderData.id; // Sử dụng GUID ID từ payload
+      
+      // Kiểm tra nếu API trả về thành công (bất kể response format)
+      if (response !== undefined && response !== null) {
+        // API success - sử dụng GUID ID từ payload thay vì response
         return {
           successful: true,
           data: {
-            id: response.toString(),
-            code: response.toString(),
+            id: orderId, // ✅ Sử dụng GUID ID từ payload
+            code: orderId, // ✅ Sử dụng GUID ID làm code
             tableId: orderData.tableId,
             createDate: new Date().toISOString(),
+            apiResponse: response, // Log API response để debug
           }
         };
       }
 
       // Kiểm tra format cũ với field successful
       if (response && response.successful) {
-        return response;
-      }
-
-      // Kiểm tra nếu có data chứa ID
-      if (response && response.data && (typeof response.data === 'number' || typeof response.data === 'string')) {
         return {
-          successful: true,
+          ...response,
           data: {
-            id: response.data.toString(),
-            code: response.data.toString(),
-            tableId: orderData.tableId,
-            createDate: new Date().toISOString(),
+            ...response.data,
+            id: orderId, // ✅ Override với GUID ID từ payload
+            code: orderId,
           }
         };
       }

@@ -38,6 +38,8 @@ export const useAreasData = (): UseAreasDataReturn => {
       console.log("🏢 Areas data received:", areasData.length, "areas");
       setAreas(areasData);
       setLastLoaded(now);
+      
+      console.log("✅ Areas data successfully updated and cached");
     } catch (err: any) {
       console.error("❌ Error loading areas:", err);
       const errorMessage = err.message || "Không thể tải danh sách khu vực";
@@ -55,7 +57,9 @@ export const useAreasData = (): UseAreasDataReturn => {
   }, [areas.length, lastLoaded]);
 
   const refreshAreas = useCallback(async () => {
+    console.log("🔄 Force refreshing areas data");
     await loadAreas(true);
+    console.log("✅ Areas force refresh completed");
   }, [loadAreas]);
 
   // Initial load
