@@ -411,64 +411,65 @@ export default function HomeScreen() {
       areaName: areaName,
     } as Table & { areaName?: string };
 
+    // COMMENTED: Table transfer logic
     // Nếu đang có món trong giỏ hàng và chọn bàn khác
-    if (
-      orderItems.length > 0 &&
-      selectedTableForOrder &&
-      selectedTableForOrder.id !== table.id
-    ) {
-      // Kiểm tra nếu bàn đích đã có order (status = 1)
-      if (table.status === 1) {
-        // Bàn đã có order - clear món hiện tại và chuyển sang bàn mới
-        Alert.alert(
-          "Chuyển sang bàn đã có đơn hàng",
-          `Bàn ${table.name} đã có đơn hàng. Các món đang chọn sẽ bị xóa và hiển thị thông tin đơn hàng của bàn này.`,
-          [
-            { text: "Hủy", style: "cancel" },
-            {
-              text: "Chuyển sang bàn",
-              onPress: () => {
-                // Clear order items hiện tại
-                setOrderItems([]);
-                // Chọn bàn mới với thông tin area
-                setSelectedTable(tableWithArea);
-                setSelectedTableForOrder(tableWithArea);
-                // Load thông tin đơn hàng của bàn mới
-                if (table.order?.id) {
-                  loadTableOrder(table.order.id);
-                }
-                console.log(
-                  `🔄 Switched to occupied table ${table.name}, cleared current order items`
-                );
-              },
-            },
-          ]
-        );
-        return;
-      } else {
-        // Bàn trống - hiển thị thông báo chuyển bàn trống
-        Alert.alert(
-          "Chuyển bàn",
-          `Bạn có muốn chuyển ${orderItems.length} món từ ${selectedTableForOrder.name} sang ${table.name}?`,
-          [
-            { text: "Hủy", style: "cancel" },
-            {
-              text: "Chuyển bàn",
-              onPress: () => {
-                setSelectedTable(tableWithArea);
-                setSelectedTableForOrder(tableWithArea);
-                // Clear selectedOrder khi chuyển sang bàn trống
-                setSelectedOrder(undefined);
-                console.log(
-                  `🔄 Moved ${orderItems.length} items from ${selectedTableForOrder.name} to ${table.name}`
-                );
-              },
-            },
-          ]
-        );
-        return;
-      }
-    }
+    // if (
+    //   orderItems.length > 0 &&
+    //   selectedTableForOrder &&
+    //   selectedTableForOrder.id !== table.id
+    // ) {
+    //   // Kiểm tra nếu bàn đích đã có order (status = 1)
+    //   if (table.status === 1) {
+    //     // Bàn đã có order - clear món hiện tại và chuyển sang bàn mới
+    //     Alert.alert(
+    //       "Chuyển sang bàn đã có đơn hàng",
+    //       `Bàn ${table.name} đã có đơn hàng. Các món đang chọn sẽ bị xóa và hiển thị thông tin đơn hàng của bàn này.`,
+    //       [
+    //         { text: "Hủy", style: "cancel" },
+    //         {
+    //           text: "Chuyển sang bàn",
+    //           onPress: () => {
+    //             // Clear order items hiện tại
+    //             setOrderItems([]);
+    //             // Chọn bàn mới với thông tin area
+    //             setSelectedTable(tableWithArea);
+    //             setSelectedTableForOrder(tableWithArea);
+    //             // Load thông tin đơn hàng của bàn mới
+    //             if (table.order?.id) {
+    //               loadTableOrder(table.order.id);
+    //             }
+    //             console.log(
+    //               `🔄 Switched to occupied table ${table.name}, cleared current order items`
+    //             );
+    //           },
+    //         },
+    //       ]
+    //     );
+    //     return;
+    //   } else {
+    //     // Bàn trống - hiển thị thông báo chuyển bàn trống
+    //     Alert.alert(
+    //       "Chuyển bàn",
+    //       `Bạn có muốn chuyển ${orderItems.length} món từ ${selectedTableForOrder.name} sang ${table.name}?`,
+    //       [
+    //         { text: "Hủy", style: "cancel" },
+    //         {
+    //           text: "Chuyển bàn",
+    //           onPress: () => {
+    //             setSelectedTable(tableWithArea);
+    //             setSelectedTableForOrder(tableWithArea);
+    //             // Clear selectedOrder khi chuyển sang bàn trống
+    //             setSelectedOrder(undefined);
+    //             console.log(
+    //               `🔄 Moved ${orderItems.length} items from ${selectedTableForOrder.name} to ${table.name}`
+    //             );
+    //           },
+    //         },
+    //       ]
+    //     );
+    //     return;
+    //   }
+    // }
 
     setSelectedTable(tableWithArea);
     setSelectedTableForOrder(tableWithArea);
