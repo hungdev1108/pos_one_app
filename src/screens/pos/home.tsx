@@ -151,7 +151,7 @@ export default function HomeScreen() {
   const [allProductsLoading, setAllProductsLoading] = useState(true);
   const [drawerVisible, setDrawerVisible] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
-  const [activeTab, setActiveTab] = useState<TabType>(TabType.MENU);
+  const [activeTab, setActiveTab] = useState<TabType>(TabType.TABLES);
   const [categoryBottomSheetVisible, setCategoryBottomSheetVisible] =
     useState(false);
   const [selectedOrder, setSelectedOrder] = useState<OrderListItem | undefined>(

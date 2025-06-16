@@ -326,23 +326,24 @@ export default function PaymentModal({
   };
 
   const handlePayment = () => {
-    if (customerPaidAmount < totalAmount) {
-      Alert.alert("Lỗi", "Số tiền khách trả phải đủ để thanh toán.");
-      return;
-    }
+    Alert.alert("Thông báo", "Update version 1.0.2");
+    // if (customerPaidAmount < totalAmount) {
+    //   Alert.alert("Lỗi", "Số tiền khách trả phải đủ để thanh toán.");
+    //   return;
+    // }
 
-    const paymentData: PaymentData = {
-      totalAmount,
-      customerPaid: customerPaidAmount,
-      change: changeAmount,
-      paymentMethod: "bank",
-      bankCode: selectedBank || "cash",
-      voucher: voucher.trim() || undefined,
-      invoiceType: invoiceType,
-      customerInfo: customerInfo,
-    };
+    // const paymentData: PaymentData = {
+    //   totalAmount,
+    //   customerPaid: customerPaidAmount,
+    //   change: changeAmount,
+    //   paymentMethod: "bank",
+    //   bankCode: selectedBank || "cash",
+    //   voucher: voucher.trim() || undefined,
+    //   invoiceType: invoiceType,
+    //   customerInfo: customerInfo,
+    // };
 
-    onPayment(paymentData);
+    // onPayment(paymentData);
   };
 
   const renderSuggestedAmounts = () => {
