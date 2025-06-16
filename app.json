@@ -2,7 +2,7 @@
   "expo": {
     "name": "POS ONE",
     "slug": "pos_one_app",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "orientation": "default",
     "icon": "./assets/images/favicon_new.png",
     "scheme": "posoneapp",
