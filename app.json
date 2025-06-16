@@ -9,7 +9,8 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.posone.app"
     },
     "android": {
       "adaptiveIcon": {
@@ -30,7 +31,6 @@
         "expo-splash-screen",
         {
           "image": "./assets/images/favicon_new.png"
-          
         }
       ]
     ],
