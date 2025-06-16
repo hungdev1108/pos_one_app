@@ -2,9 +2,9 @@
   "expo": {
     "name": "POS ONE",
     "slug": "pos_one_app",
-    "version": "1.0.1",
+    "version": "1.0.2",
     "orientation": "default",
-    "icon": "./assets/images/favicon_new.png",
+    "icon": "./assets/images/applogo.png",
     "scheme": "posoneapp",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
@@ -14,7 +14,7 @@
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/images/favicon_new.png",
+        "foregroundImage": "./assets/images/applogo.png",
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
@@ -23,14 +23,14 @@
     "web": {
       "bundler": "metro",
       "output": "static",
-      "favicon": "./assets/images/favicon_new.png"
+      "favicon": "./assets/images/applogo.png"
     },
     "plugins": [
       "expo-router",
       [
         "expo-splash-screen",
         {
-          "image": "./assets/images/favicon_new.png"
+          "image": "./assets/images/applogo.png"
         }
       ]
     ],

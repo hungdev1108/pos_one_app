@@ -28,7 +28,7 @@ const isTablet = width >= 720;
 const DRAWER_WIDTH = isTablet ? SCREEN_WIDTH * 0.4 : SCREEN_WIDTH * 0.8;
 
 // Pre-load logo để tránh loading mỗi lần render
-const LOGO_SOURCE = require("../../../assets/images/Logo-one-purple_new.png");
+const LOGO_SOURCE = require("../../../assets/images/One-Green-no-backg.png");
 
 export default function DrawerMenu({
   visible,
